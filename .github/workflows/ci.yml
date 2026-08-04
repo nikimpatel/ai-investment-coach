@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: "8.0.x"
+  NODE_VERSION: "20"
+
+jobs:
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect frontend
+        id: detect
+        run: |
+          if [ -f package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No package.json; skipping frontend job steps."
+          fi
+
+      - name: Setup Node.js
+        if: steps.detect.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.detect.outputs.present == 'true'
+        run: npm ci
+
+      - name: Typecheck
+        if: steps.detect.outputs.present == 'true'
+        run: npm run typecheck
+
+      - name: Lint
+        if: steps.detect.outputs.present == 'true'
+        run: npm run lint
+
+      - name: Build
+        if: steps.detect.outputs.present == 'true'
+        run: npm run build
+
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect backend
+        id: detect
+        run: |
+          if [ -f backend/TenYearExplorer.sln ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "solution=backend/TenYearExplorer.sln" >> "$GITHUB_OUTPUT"
+          elif ls backend/*.sln >/dev/null 2>&1; then
+            solution="$(ls backend/*.sln | head -n 1)"
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "solution=${solution}" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No backend solution; skipping backend job steps."
+          fi
+
+      - name: Setup .NET
+        if: steps.detect.outputs.present == 'true'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore backend
+        if: steps.detect.outputs.present == 'true'
+        run: dotnet restore ${{ steps.detect.outputs.solution }}
+
+      - name: Build backend
+        if: steps.detect.outputs.present == 'true'
+        run: dotnet build ${{ steps.detect.outputs.solution }} --configuration Release --no-restore
+
+      - name: Test backend
+        if: steps.detect.outputs.present == 'true'
+        run: dotnet test ${{ steps.detect.outputs.solution }} --configuration Release --no-build --verbosity normal
