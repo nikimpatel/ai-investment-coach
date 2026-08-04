@@ -1,0 +1,6 @@
+@TenYearExplorer.Api_HostAddress = http://localhost:5104
+
+GET {{TenYearExplorer.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
