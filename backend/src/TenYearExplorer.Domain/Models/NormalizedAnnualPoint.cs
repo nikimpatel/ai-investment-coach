@@ -10,4 +10,9 @@ public sealed record NormalizedAnnualPoint(
     string Concept,
     DateOnly FilingDate,
     string Form,
-    string Accession);
+    string Accession,
+    /// <summary>
+    /// True when the selected fact came only from a later comparative filing
+    /// (reported FY did not match the period-end year).
+    /// </summary>
+    bool IsComparative = false);

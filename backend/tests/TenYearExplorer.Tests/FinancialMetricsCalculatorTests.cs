@@ -64,6 +64,16 @@ public sealed class FinancialMetricsCalculatorTests
         Assert.Equal("FY3", summary.Lowest!.FiscalYear);
         Assert.Equal("FY2", summary.LargestIncrease!.FiscalYear);
         Assert.Equal("FY3", summary.LargestDecline!.FiscalYear);
+        Assert.Equal(-10m, summary.AbsoluteChange);
+        Assert.Equal(-0.10m, summary.TotalPercentageChange);
+    }
+
+    [Fact]
+    public void Cagr_ZeroStart_Unavailable_For_EpsSafety()
+    {
+        var (cagr, reason) = _sut.ComputeCagr(0m, 2.5m, 9);
+        Assert.Null(cagr);
+        Assert.Contains("positive", reason, StringComparison.OrdinalIgnoreCase);
     }
 
     private static NormalizedAnnualPoint Point(string fy, int year, decimal value) =>

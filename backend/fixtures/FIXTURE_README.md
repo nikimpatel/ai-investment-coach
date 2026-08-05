@@ -1,4 +1,4 @@
-# Apple SEC fixtures (Sprint 1)
+# Apple SEC fixtures (Sprint 1–2)
 
 ## Origin
 
@@ -9,26 +9,30 @@
 
 ## Capture status
 
-**Live capture was blocked in this environment** because `SEC__ApplicationName` / `SEC__ContactEmail` were not set. Per Sprint 1 rules, anonymous/fake SEC User-Agent requests were not sent.
+**Sprint 2 live capture (2026-08-04):** Company Facts were downloaded with project-isolated .NET User Secrets (`SEC:ApplicationName` / `SEC:ContactEmail`). Secrets and the full User-Agent are never stored in this fixture.
 
-The fixture is a **reduced, sanitised Company Facts / Submissions shape** populated with Apple annual revenue figures and accession metadata that match publicly reported 10-K values for FY2015–FY2025. Structure mirrors SEC JSON (`cik`, `entityName`, `facts.us-gaap.<concept>.units.USD[]` with `start`, `end`, `val`, `accn`, `fy`, `fp`, `form`, `filed`, `frame`).
+**Revenue concepts** in the reduced fixture remain the Sprint 1 series (unchanged values for FY2016–FY2025 regression).
 
-Documented construction date: **2026-08-04**.
+**New metric concepts** (`GrossProfit`, `OperatingIncomeLoss`, `NetIncomeLoss`, `EarningsPerShareDiluted`) were reduced from the authentic live Company Facts payload captured the same day. Values were not invented or hand-edited.
+
+Full live capture used for reduction is local-only under `docs/sprint2/_live_companyfacts_full.json` (gitignored; not committed).
 
 ## Reduction / sanitisation
 
-- Kept only revenue-related US-GAAP concepts needed for Sprint 1 mapping tests.
-- Included intentional **10-Q / quarterly-duration** rows so normalizer rejection is testable.
-- Included **comparative prior-year** facts from a later 10-K to verify own-period preference.
-- Removed unrelated taxonomy concepts and non-USD units.
+- Kept revenue-related US-GAAP concepts needed for Sprint 1 mapping tests (preserved exactly).
+- Added annual 10-K/10-K/A facts for Gross Profit, Operating Income, Net Income, Diluted EPS for FY2014–FY2025 (plus a few comparative rows present in the live payload).
+- Included intentional **10-Q / quarterly-duration** sample rows so normalizer rejection remains testable.
+- Diluted EPS kept under unit `USD/shares` only (not monetary `USD`).
+- Diluted EPS rows include authentic post-split **comparative** restatements (e.g. FY2018 `2.98` and FY2019 `2.97` from the 2020/2021 10-Ks). Values were not invented or hand-scaled; the normalizer prefers these over pre-split own-period tags.
+- Removed unrelated taxonomy concepts.
 - No personal contact data or secrets.
 
 ## Re-capture (when SEC identity is configured)
 
 ```powershell
-$env:SEC__ApplicationName = "YOUR_NAME TenYearExplorer"
-$env:SEC__ContactEmail = "you@example.com"
-# Then download with identifying User-Agent and replace these fixtures.
+# Uses project User Secrets — do not print values
+dotnet user-secrets list --project src/TenYearExplorer.Api
+# Download with identifying User-Agent built from SEC:ApplicationName + SEC:ContactEmail
 ```
 
-Do not commit real personal email addresses.
+Do not commit real personal email addresses or the full live Company Facts blob.

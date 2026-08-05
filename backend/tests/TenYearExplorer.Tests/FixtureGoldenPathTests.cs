@@ -5,6 +5,7 @@ using TenYearExplorer.Application.Services;
 using TenYearExplorer.Domain.Enums;
 using TenYearExplorer.Infrastructure.Caching;
 using TenYearExplorer.Infrastructure.Sec;
+using TenYearExplorer.Application.Metrics;
 
 namespace TenYearExplorer.Tests;
 
@@ -36,15 +37,7 @@ public sealed class FixtureGoldenPathTests
             RequestTimeoutSeconds = 30,
         });
 
-        var client = new FixtureSecEdgarClient(options, NullLogger<FixtureSecEdgarClient>.Instance);
-        var provider = new SecFinancialFactsProvider(client, NullLogger<SecFinancialFactsProvider>.Instance);
-        var sut = new FinancialHistoryService(
-            provider,
-            new XbrlKpiNormalizer(),
-            new FinancialMetricsCalculator(),
-            new MemoryFinancialDataCache(),
-            options,
-            NullLogger<FinancialHistoryService>.Instance);
+        var sut = CreateFixtureService(options);
 
         var result = await sut.GetHistoryAsync("AAPL", "revenue", "annual", 10, CancellationToken.None);
 
@@ -52,6 +45,9 @@ public sealed class FixtureGoldenPathTests
         Assert.Equal(10, result.Points.Count);
         Assert.Equal("Apple Inc.", result.Company.Name);
         Assert.Equal("0000320193", result.Company.Cik);
+        Assert.Equal(SupportedMetrics.Revenue, result.Metric);
+        Assert.NotNull(result.Margins);
+        Assert.NotNull(result.Margins!.GrossMargin);
 
         for (var i = 0; i < Expected.Length; i++)
         {
@@ -75,5 +71,118 @@ public sealed class FixtureGoldenPathTests
 
         var expectedCagr = (decimal)(Math.Pow((double)(Expected[^1].Value / Expected[0].Value), 1.0 / 9) - 1.0);
         Assert.Equal(expectedCagr, result.Summary.Cagr);
+        Assert.Equal(Expected[^1].Value - Expected[0].Value, result.Summary.AbsoluteChange);
+    }
+
+    [Theory]
+    [InlineData(SupportedMetrics.GrossProfit, "GrossProfit", "USD")]
+    [InlineData(SupportedMetrics.OperatingIncome, "OperatingIncomeLoss", "USD")]
+    [InlineData(SupportedMetrics.NetIncome, "NetIncomeLoss", "USD")]
+    public async Task Fixture_Produces_TenYear_Series_For_New_Metrics(
+        string metric,
+        string expectedConcept,
+        string expectedUnit)
+    {
+        var options = Options.Create(new SecOptions
+        {
+            UseFixtureData = true,
+            FixtureCompanyFactsPath = "fixtures/apple-company-facts-reduced.json",
+            FixtureSubmissionsPath = "fixtures/apple-submissions-reduced.json",
+            CacheDurationMinutes = 60,
+            RequestTimeoutSeconds = 30,
+        });
+
+        var sut = CreateFixtureService(options);
+        var result = await sut.GetHistoryAsync("AAPL", metric, "annual", 10, CancellationToken.None);
+
+        Assert.True(
+            result.Status is FinancialHistoryStatus.Success or FinancialHistoryStatus.PartiallySupported,
+            result.Detail);
+        Assert.Equal(10, result.Points.Count);
+        Assert.Equal("FY2016", result.Points[0].FiscalYear);
+        Assert.Equal("FY2025", result.Points[^1].FiscalYear);
+        Assert.All(result.Points, p =>
+        {
+            Assert.Equal(expectedConcept, p.Concept);
+            Assert.Equal(expectedUnit, p.Unit);
+            Assert.Equal("10-K", p.Form);
+        });
+        Assert.Null(result.Points[0].YearOverYearChange);
+        Assert.NotNull(result.Summary);
+        Assert.Equal(9, result.Summary!.Intervals);
+        Assert.NotNull(result.Margins);
+    }
+
+    [Fact]
+    public async Task Fixture_Produces_SplitAdjusted_Comparable_DilutedEps_Series()
+    {
+        var options = Options.Create(new SecOptions
+        {
+            UseFixtureData = true,
+            FixtureCompanyFactsPath = "fixtures/apple-company-facts-reduced.json",
+            FixtureSubmissionsPath = "fixtures/apple-submissions-reduced.json",
+            CacheDurationMinutes = 60,
+            RequestTimeoutSeconds = 30,
+        });
+
+        var sut = CreateFixtureService(options);
+        var result = await sut.GetHistoryAsync("AAPL", SupportedMetrics.DilutedEps, "annual", 10, CancellationToken.None);
+
+        Assert.Equal(FinancialHistoryStatus.PartiallySupported, result.Status);
+        // Company Facts supply post-split restated comparatives from FY2018; FY2016–FY2017 lack them.
+        Assert.Equal(8, result.Points.Count);
+        Assert.Equal("FY2018", result.Points[0].FiscalYear);
+        Assert.Equal("FY2025", result.Points[^1].FiscalYear);
+
+        decimal[] expected =
+        [
+            2.98m, // FY2018 comparative from 2020 10-K (split-adjusted)
+            2.97m, // FY2019 comparative from later 10-K (split-adjusted)
+            3.28m, 5.61m, 6.11m, 6.13m, 6.08m, 7.46m,
+        ];
+        for (var i = 0; i < expected.Length; i++)
+        {
+            Assert.Equal(expected[i], result.Points[i].Value);
+            Assert.Equal("EarningsPerShareDiluted", result.Points[i].Concept);
+            Assert.Equal("USD/shares", result.Points[i].Unit);
+            Assert.Equal("10-K", result.Points[i].Form);
+        }
+
+        Assert.Equal("0000320193-20-000096", result.Points[0].Accession);
+        Assert.True(result.Points[1].Accession is "0000320193-20-000096" or "0000320193-21-000105");
+
+        Assert.Contains(result.Warnings, w => w.Code == "SPLIT_ADJUSTED_COMPARATIVE_PREFERRED");
+        Assert.Contains(result.Warnings, w => w.Code == "SPLIT_INCOMPARABLE_YEAR_EXCLUDED" && w.FiscalYear == "FY2016");
+        Assert.Contains(result.Warnings, w => w.Code == "SPLIT_INCOMPARABLE_YEAR_EXCLUDED" && w.FiscalYear == "FY2017");
+        Assert.Contains(result.Warnings, w => w.Code == "SPLIT_BASIS_NORMALIZED");
+
+        Assert.NotNull(result.Summary);
+        Assert.Equal(7, result.Summary!.Intervals);
+        Assert.Equal(2.98m, result.Summary.StartValue);
+        Assert.Equal(7.46m, result.Summary.EndValue);
+        var expectedCagr = (decimal)(Math.Pow((double)(7.46m / 2.98m), 1.0 / 7) - 1.0);
+        Assert.Equal(expectedCagr, result.Summary.Cagr);
+
+        // Must not present the mixed-basis false narrative (8.31 → 7.46).
+        Assert.DoesNotContain(result.Points, p => p.Value == 8.31m);
+        Assert.DoesNotContain(result.Points, p => p.Value == 11.89m);
+        Assert.DoesNotContain(result.Points, p => p.Value == 11.91m);
+    }
+
+    private static FinancialHistoryService CreateFixtureService(IOptions<SecOptions> options)
+    {
+        var client = new FixtureSecEdgarClient(options, NullLogger<FixtureSecEdgarClient>.Instance);
+        var provider = new SecFinancialFactsProvider(
+            client,
+            new MemoryCompanyFactsCache(),
+            options,
+            NullLogger<SecFinancialFactsProvider>.Instance);
+        return new FinancialHistoryService(
+            provider,
+            new XbrlKpiNormalizer(),
+            new FinancialMetricsCalculator(),
+            new MemoryFinancialDataCache(),
+            options,
+            NullLogger<FinancialHistoryService>.Instance);
     }
 }

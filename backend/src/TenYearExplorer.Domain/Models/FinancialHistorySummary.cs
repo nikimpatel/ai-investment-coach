@@ -15,6 +15,8 @@ public sealed record FinancialHistorySummary(
     string StartFiscalYear,
     string EndFiscalYear,
     int Intervals,
+    decimal AbsoluteChange,
+    decimal? TotalPercentageChange,
     decimal? Cagr,
     string? CagrUnavailableReason,
     int PositiveGrowthYears,

@@ -16,7 +16,8 @@ public sealed class CompaniesController : ControllerBase
     }
 
     /// <summary>
-    /// Sprint 1: Apple Inc. annual revenue for the latest 10 completed fiscal years.
+    /// Sprint 2: Apple Inc. annual financial history for an allowlisted metric
+    /// (revenue, gross-profit, operating-income, net-income, diluted-eps).
     /// </summary>
     [HttpGet("{symbol}/financial-history")]
     [ProducesResponseType(StatusCodes.Status200OK)]

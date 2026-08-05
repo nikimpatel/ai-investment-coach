@@ -14,6 +14,10 @@ public static class FinancialHistoryMapper
             Cik: result.Company.Cik,
             Currency: result.Currency,
             Metric: result.Metric,
+            MetricLabel: result.MetricLabel,
+            MetricDescription: result.MetricDescription,
+            ReportingUnit: result.ReportingUnit,
+            DisplayFormat: result.DisplayFormat,
             Period: result.Period,
             Years: result.RequestedYears,
             Points: result.Points.Select(p => new FinancialHistoryPointDto(
@@ -34,6 +38,8 @@ public static class FinancialHistoryMapper
                 result.Summary.StartFiscalYear,
                 result.Summary.EndFiscalYear,
                 result.Summary.Intervals,
+                result.Summary.AbsoluteChange,
+                result.Summary.TotalPercentageChange,
                 result.Summary.Cagr,
                 result.Summary.CagrUnavailableReason,
                 result.Summary.PositiveGrowthYears,
@@ -49,11 +55,46 @@ public static class FinancialHistoryMapper
                     result.Summary.LargestDecline.FiscalYear,
                     result.Summary.LargestDecline.AbsoluteChange,
                     result.Summary.LargestDecline.RelativeChange)),
+            Margins: MapMargins(result.Margins),
             SourceProvider: result.SourceProvider,
             RetrievedAtUtc: result.RetrievedAtUtc,
             CacheStatus: result.CacheStatus.ToString(),
             Warnings: result.Warnings.Select(w => new WarningDto(w.Code, w.Message, w.FiscalYear, w.Concept)).ToList(),
             Detail: result.Detail);
+
+    private static DerivedMarginsDto? MapMargins(DerivedMarginsResult? margins)
+    {
+        if (margins is null)
+        {
+            return null;
+        }
+
+        return new DerivedMarginsDto(
+            MapSeries(margins.GrossMargin),
+            MapSeries(margins.OperatingMargin),
+            MapSeries(margins.NetMargin));
+    }
+
+    private static DerivedMarginSeriesDto? MapSeries(DerivedMarginSeries? series)
+    {
+        if (series is null)
+        {
+            return null;
+        }
+
+        return new DerivedMarginSeriesDto(
+            series.Code,
+            series.Label,
+            series.Description,
+            series.Points.Select(p => new MarginPointDto(
+                p.FiscalYear,
+                p.MarginPercent,
+                p.ChangePercentagePoints,
+                p.IsAvailable)).ToList(),
+            series.StartMarginPercent,
+            series.EndMarginPercent,
+            series.ChangePercentagePoints);
+    }
 
     public static int ToHttpStatusCode(FinancialHistoryStatus status) =>
         status switch
