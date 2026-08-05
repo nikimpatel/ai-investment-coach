@@ -27,6 +27,18 @@ export type DecisionStance =
 
 export type PatternAction = "confirm" | "correct" | "dismiss" | null;
 
+export type EvidenceRelationship = "supports" | "weakens" | "neutral";
+
+export interface PerformanceObservationEvidence {
+  company: string;
+  metricOrMargin: string;
+  fiscalYears: string;
+  exactValues: string;
+  text: string;
+  sourceType: string;
+  relationship: EvidenceRelationship;
+}
+
 export interface ResearchAnswers {
   attraction: AttractionDriver | "";
   attractionNote: string;
@@ -46,6 +58,8 @@ export interface ThesisDraft {
   openQuestions: string;
   /** Observation captured from the financial-performance step. */
   performanceObservation: string;
+  /** Structured source details for the performance observation. */
+  performanceEvidence: PerformanceObservationEvidence | null;
 }
 
 export interface DecisionEntry {

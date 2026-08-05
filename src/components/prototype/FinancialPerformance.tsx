@@ -3,15 +3,23 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { AlertCircle } from "@/components/ui/icons";
 import {
-  fetchAppleRevenueHistory,
+  fetchAppleFinancialHistory,
   type AppleFinancialHistoryResponse,
   type AppleFinancialPoint,
 } from "@/lib/apple-financial-api";
 import {
   buildAppleBeginnerExplanation,
+  buildAppleMarginExplanation,
   buildAppleSummarySentences,
-  DEFAULT_APPLE_OBSERVATION,
+  buildDefaultAppleObservation,
 } from "@/lib/apple-trend-copy";
+import {
+  APPLE_METRIC_OPTIONS,
+  formatAppleMetricValue,
+  formatMarginPercent,
+  formatPercentagePoints,
+  type AppleMetricId,
+} from "@/lib/apple-metrics";
 import {
   buildBeginnerExplanation,
   buildSummarySentences,
@@ -26,6 +34,10 @@ import {
   financialKpiOptions,
   harborlineRevenueSeries,
 } from "@/lib/harborline-financials";
+import type {
+  EvidenceRelationship,
+  PerformanceObservationEvidence,
+} from "@/lib/types";
 
 type ViewMode = "chart" | "table";
 type DatasetMode = "harborline" | "apple";
@@ -33,6 +45,8 @@ type DatasetMode = "harborline" | "apple";
 interface FinancialPerformanceProps {
   performanceObservation: string;
   onObservationChange: (value: string) => void;
+  performanceEvidence: PerformanceObservationEvidence | null;
+  onEvidenceChange: (value: PerformanceObservationEvidence | null) => void;
   onBack: () => void;
   onContinue: () => void;
 }
@@ -40,10 +54,13 @@ interface FinancialPerformanceProps {
 export function FinancialPerformance({
   performanceObservation,
   onObservationChange,
+  performanceEvidence,
+  onEvidenceChange,
   onBack,
   onContinue,
 }: FinancialPerformanceProps) {
   const [dataset, setDataset] = useState<DatasetMode>("harborline");
+  const [appleMetric, setAppleMetric] = useState<AppleMetricId>("revenue");
   const [viewMode, setViewMode] = useState<ViewMode>("chart");
   const [draftObservation, setDraftObservation] = useState(
     performanceObservation.trim()
@@ -59,6 +76,9 @@ export function FinancialPerformance({
   const [expandedFilingYear, setExpandedFilingYear] = useState<string | null>(
     null,
   );
+  const [relationship, setRelationship] = useState<EvidenceRelationship | "">(
+    performanceEvidence?.relationship ?? "",
+  );
 
   useEffect(() => {
     if (dataset !== "apple") return;
@@ -69,15 +89,11 @@ export function FinancialPerformance({
       setAppleLoading(true);
       setAppleFetchError(null);
       try {
-        const payload = await fetchAppleRevenueHistory();
+      const payload = await fetchAppleFinancialHistory(appleMetric);
         if (!cancelled) {
           setAppleData(payload);
-          if (
-            !performanceObservation.trim() &&
-            (payload.status === "Success" ||
-              payload.status === "PartiallySupported")
-          ) {
-            setDraftObservation(DEFAULT_APPLE_OBSERVATION);
+          if (payload.status === "Success" || payload.status === "PartiallySupported") {
+            setDraftObservation(buildDefaultAppleObservation(payload));
           }
         }
       } catch (error: unknown) {
@@ -99,9 +115,7 @@ export function FinancialPerformance({
     return () => {
       cancelled = true;
     };
-    // Intentionally depend only on dataset; observation draft is seeded once per successful load.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid refetch on every thesis observation edit
-  }, [dataset]);
+  }, [dataset, appleMetric]);
 
   const harborlineStats = useMemo(
     () => buildTrendSummary(harborlineRevenueSeries.points),
@@ -110,15 +124,17 @@ export function FinancialPerformance({
 
   const observationInThesis = performanceObservation.trim().length > 0;
 
-  const addObservation = () => {
+  const addHarborlineObservation = () => {
     const next = draftObservation.trim();
     if (!next) return;
     onObservationChange(next);
+    onEvidenceChange(null);
     setConfirmMessage("Observation added to your thesis draft.");
   };
 
   const removeObservation = () => {
     onObservationChange("");
+    onEvidenceChange(null);
     setConfirmMessage("Observation removed from your thesis draft.");
   };
 
@@ -152,8 +168,8 @@ export function FinancialPerformance({
             : "Apple Inc."}
         </h3>
         <p className="mt-1 text-xs leading-relaxed text-muted">
-          Ten years of revenue history to interpret — not a buy, sell, or hold
-          signal.
+          Ten years of financial performance to interpret — not a buy, sell, or
+          hold signal.
         </p>
 
         <div
@@ -197,7 +213,7 @@ export function FinancialPerformance({
             observationInThesis={observationInThesis}
             performanceObservation={performanceObservation}
             confirmMessage={confirmMessage}
-            addObservation={addObservation}
+            addObservation={addHarborlineObservation}
             removeObservation={removeObservation}
           />
         ) : (
@@ -205,6 +221,8 @@ export function FinancialPerformance({
             loading={appleLoading}
             fetchError={appleFetchError}
             data={appleData}
+            appleMetric={appleMetric}
+            setAppleMetric={setAppleMetric}
             viewMode={viewMode}
             setViewMode={setViewMode}
             expandedFilingYear={expandedFilingYear}
@@ -214,8 +232,12 @@ export function FinancialPerformance({
             setConfirmMessage={setConfirmMessage}
             observationInThesis={observationInThesis}
             performanceObservation={performanceObservation}
+            performanceEvidence={performanceEvidence}
             confirmMessage={confirmMessage}
-            addObservation={addObservation}
+            relationship={relationship}
+            setRelationship={setRelationship}
+            onObservationChange={onObservationChange}
+            onEvidenceChange={onEvidenceChange}
             removeObservation={removeObservation}
           />
         )}
@@ -307,6 +329,7 @@ function HarborlinePanel({
             value: p.value,
           }))}
           currency={series.currency}
+          label="Revenue"
           caption={`Annual revenue (${series.currency}) — demonstration levels only`}
         />
       ) : (
@@ -355,6 +378,8 @@ function ApplePanel({
   loading,
   fetchError,
   data,
+  appleMetric,
+  setAppleMetric,
   viewMode,
   setViewMode,
   expandedFilingYear,
@@ -364,13 +389,19 @@ function ApplePanel({
   setConfirmMessage,
   observationInThesis,
   performanceObservation,
+  performanceEvidence,
   confirmMessage,
-  addObservation,
+  relationship,
+  setRelationship,
+  onObservationChange,
+  onEvidenceChange,
   removeObservation,
 }: {
   loading: boolean;
   fetchError: string | null;
   data: AppleFinancialHistoryResponse | null;
+  appleMetric: AppleMetricId;
+  setAppleMetric: (value: AppleMetricId) => void;
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   expandedFilingYear: string | null;
@@ -380,14 +411,18 @@ function ApplePanel({
   setConfirmMessage: (value: string | null) => void;
   observationInThesis: boolean;
   performanceObservation: string;
+  performanceEvidence: PerformanceObservationEvidence | null;
   confirmMessage: string | null;
-  addObservation: () => void;
+  relationship: EvidenceRelationship | "";
+  setRelationship: (value: EvidenceRelationship | "") => void;
+  onObservationChange: (value: string) => void;
+  onEvidenceChange: (value: PerformanceObservationEvidence | null) => void;
   removeObservation: () => void;
 }) {
   if (loading) {
     return (
       <p className="rounded-xl border border-line bg-mist px-3 py-4 text-sm text-muted" role="status">
-        Loading Apple annual revenue from the API…
+        Loading Apple annual financial history from the API…
       </p>
     );
   }
@@ -407,7 +442,7 @@ function ApplePanel({
         className="rounded-xl border border-line bg-mist px-3 py-4 text-sm text-muted"
         role="status"
       >
-        Loading Apple annual revenue from the API…
+        Loading Apple annual financial history from the API…
       </p>
     );
   }
@@ -440,7 +475,7 @@ function ApplePanel({
     return (
       <StateBanner
         title="Unsupported request"
-        body={data.detail ?? "Sprint 1 supports Apple annual revenue only."}
+        body={data.detail ?? "This Apple metric is not available from the API."}
       />
     );
   }
@@ -455,7 +490,7 @@ function ApplePanel({
         title="Insufficient reliable history"
         body={
           data.detail ??
-          "Fewer than 10 reliable annual revenue points were available."
+          "Fewer than 10 reliable annual points were available."
         }
         warnings={data.warnings}
       />
@@ -464,8 +499,33 @@ function ApplePanel({
 
   const summarySentences = buildAppleSummarySentences(data);
   const beginnerExplanation = buildAppleBeginnerExplanation(data);
+  const marginExplanation = buildAppleMarginExplanation(data);
   const canAddObservation =
     data.status === "Success" || data.status === "PartiallySupported";
+  const metricOption = APPLE_METRIC_OPTIONS.find(
+    (option) => option.id === appleMetric,
+  );
+  const displayFormat = data.displayFormat || "currency";
+  const formatValue = (value: number) =>
+    formatAppleMetricValue(value, displayFormat, data.currency);
+  const addAppleObservation = () => {
+    const text = draftObservation.trim();
+    if (!text || !relationship || !data.summary) return;
+
+    onObservationChange(text);
+    onEvidenceChange({
+      company: data.company.name,
+      metricOrMargin: data.metricLabel || metricOption?.label || "Metric",
+      fiscalYears: `${data.summary.startFiscalYear} → ${data.summary.endFiscalYear}`,
+      exactValues: `${formatValue(data.summary.startValue).exact} → ${formatValue(data.summary.endValue).exact}`,
+      text,
+      sourceType: data.sourceProvider.toLowerCase().includes("fixture")
+        ? "SEC fixture data"
+        : "Live SEC data",
+      relationship,
+    });
+    setConfirmMessage("Observation and source details added to your thesis draft.");
+  };
 
   return (
     <>
@@ -486,7 +546,11 @@ function ApplePanel({
         {data.cacheStatus}
       </p>
 
-      <KpiSelector />
+      <AppleMetricSelector
+        metric={appleMetric}
+        onChange={setAppleMetric}
+        description={data.metricDescription || metricOption?.shortDescription}
+      />
 
       {data.warnings.length > 0 && (
         <aside
@@ -514,12 +578,16 @@ function ApplePanel({
             value: p.value,
           }))}
           currency={data.currency}
-          caption={`Annual revenue (${data.currency}) from API — chart levels match the table`}
+          label={data.metricLabel || metricOption?.label || "Metric"}
+          displayFormat={displayFormat}
+          caption={`Annual ${data.metricLabel || metricOption?.label || "metric"} (${data.currency}) from API — chart levels match the table`}
         />
       ) : (
         <AppleRevenueTable
           points={data.points}
           currency={data.currency}
+          metricLabel={data.metricLabel || metricOption?.label || "Metric"}
+          displayFormat={displayFormat}
           expandedFilingYear={expandedFilingYear}
           setExpandedFilingYear={setExpandedFilingYear}
         />
@@ -537,21 +605,26 @@ function ApplePanel({
         highest={data.summary.highest}
         lowest={data.summary.lowest}
         currency={data.currency}
+        displayFormat={displayFormat}
       />
 
+      <MarginSection data={data} explanations={marginExplanation} />
       <FollowUpQuestions />
-      <ObservationEditor
+      <AppleObservationEditor
         companyHint="Apple"
         draftObservation={draftObservation}
         setDraftObservation={setDraftObservation}
         setConfirmMessage={setConfirmMessage}
         observationInThesis={observationInThesis}
         performanceObservation={performanceObservation}
+        performanceEvidence={performanceEvidence}
         confirmMessage={confirmMessage}
-        addObservation={addObservation}
+        relationship={relationship}
+        setRelationship={setRelationship}
+        addObservation={addAppleObservation}
         removeObservation={removeObservation}
         canAdd={canAddObservation}
-        identityNote="Observation preserves Apple / revenue identity from the verified API response. It is not an investment conclusion."
+        identityNote="The selected metric and SEC source details will be saved with this observation. Choose its relationship to your thesis yourself."
       />
     </>
   );
@@ -589,8 +662,48 @@ function KpiSelector() {
         })}
       </div>
       <p className="mt-1.5 text-[11px] text-muted">
-        Revenue is the only enabled KPI in Sprint 1.
+        Harborline remains a revenue-only fictional demonstration.
       </p>
+    </section>
+  );
+}
+
+function AppleMetricSelector({
+  metric,
+  onChange,
+  description,
+}: {
+  metric: AppleMetricId;
+  onChange: (metric: AppleMetricId) => void;
+  description?: string;
+}) {
+  return (
+    <section aria-labelledby="apple-metric-selector-label">
+      <p id="apple-metric-selector-label" className="text-xs font-medium text-ink">
+        Financial metric
+      </p>
+      <div className="mt-1.5 flex flex-wrap gap-2" role="group" aria-label="Apple financial metric selector">
+        {APPLE_METRIC_OPTIONS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={metric === option.id}
+            onClick={() => onChange(option.id)}
+            className={`rounded-xl border px-3 py-2 text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+              metric === option.id
+                ? "border-accent bg-accent/5 text-ink"
+                : "border-line text-muted hover:text-ink"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      {description && (
+        <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+          {description}
+        </p>
+      )}
     </section>
   );
 }
@@ -645,6 +758,7 @@ function TrendSummaryCard({
   highest,
   lowest,
   currency = "USD",
+  displayFormat = "currency",
 }: {
   cagr: number | null;
   positive: number;
@@ -657,6 +771,7 @@ function TrendSummaryCard({
   highest?: { fiscalYear: string; value: number } | null;
   lowest?: { fiscalYear: string; value: number } | null;
   currency?: string;
+  displayFormat?: string;
 }) {
   return (
     <section
@@ -696,7 +811,7 @@ function TrendSummaryCard({
             <dt className="text-muted">Highest</dt>
             <dd className="mt-0.5 font-medium text-ink">
               {highest.fiscalYear} (
-              {formatCompactCurrency(highest.value, currency)})
+              {formatAppleMetricValue(highest.value, displayFormat, currency).compact})
             </dd>
           </div>
         )}
@@ -705,7 +820,7 @@ function TrendSummaryCard({
             <dt className="text-muted">Lowest</dt>
             <dd className="mt-0.5 font-medium text-ink">
               {lowest.fiscalYear} (
-              {formatCompactCurrency(lowest.value, currency)})
+              {formatAppleMetricValue(lowest.value, displayFormat, currency).compact})
             </dd>
           </div>
         )}
@@ -738,6 +853,150 @@ function FollowUpQuestions() {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+function MarginSection({
+  data,
+  explanations,
+}: {
+  data: AppleFinancialHistoryResponse;
+  explanations: string[];
+}) {
+  const margins = data.margins
+    ? [
+        data.margins.grossMargin,
+        data.margins.operatingMargin,
+        data.margins.netMargin,
+      ].filter((margin): margin is NonNullable<typeof margin> => margin !== null)
+    : [];
+
+  if (margins.length === 0) return null;
+
+  return (
+    <section aria-labelledby="margin-heading" className="rounded-xl border border-line bg-paper px-3 py-3">
+      <h4 id="margin-heading" className="text-sm font-medium text-ink">
+        Profitability margins
+      </h4>
+      <div className="mt-2 space-y-2">
+        {margins.map((margin) => (
+          <div key={margin.code} className="rounded-lg bg-mist px-2.5 py-2 text-xs">
+            <p className="font-medium text-ink">{margin.label}</p>
+            <p className="mt-0.5 tabular-nums text-ink">
+              {formatMarginPercent(margin.startMarginPercent)} →{" "}
+              {formatMarginPercent(margin.endMarginPercent)}{" "}
+              <span className="text-muted">
+                ({formatPercentagePoints(margin.changePercentagePoints)})
+              </span>
+            </p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-muted">
+              {margin.description}
+            </p>
+          </div>
+        ))}
+      </div>
+      {explanations.length > 0 && (
+        <ul className="mt-3 space-y-1 text-[11px] leading-relaxed text-muted">
+          {explanations.map((line) => (
+            <li key={line}>• {line}</li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function AppleObservationEditor({
+  companyHint,
+  draftObservation,
+  setDraftObservation,
+  setConfirmMessage,
+  observationInThesis,
+  performanceObservation,
+  performanceEvidence,
+  confirmMessage,
+  relationship,
+  setRelationship,
+  addObservation,
+  removeObservation,
+  canAdd,
+  identityNote,
+}: {
+  companyHint: string;
+  draftObservation: string;
+  setDraftObservation: (value: string) => void;
+  setConfirmMessage: (value: string | null) => void;
+  observationInThesis: boolean;
+  performanceObservation: string;
+  performanceEvidence: PerformanceObservationEvidence | null;
+  confirmMessage: string | null;
+  relationship: EvidenceRelationship | "";
+  setRelationship: (value: EvidenceRelationship | "") => void;
+  addObservation: () => void;
+  removeObservation: () => void;
+  canAdd: boolean;
+  identityNote?: string;
+}) {
+  return (
+    <section aria-labelledby="apple-observation-heading" className="rounded-xl border border-line px-3 py-3">
+      <h4 id="apple-observation-heading" className="text-sm font-medium text-ink">
+        Add observation to thesis
+      </h4>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted">
+        Capture what this history suggests for your reasoning. It is not proof that {companyHint} is a good investment.
+      </p>
+      {identityNote && <p className="mt-1 text-[11px] leading-relaxed text-muted">{identityNote}</p>}
+      <label className="mt-2 block">
+        <span className="sr-only">Performance observation</span>
+        <textarea
+          value={draftObservation}
+          onChange={(event) => {
+            setDraftObservation(event.target.value);
+            setConfirmMessage(null);
+          }}
+          rows={3}
+          className="w-full resize-none rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+        />
+      </label>
+      <label className="mt-2 block text-[11px] font-medium text-ink">
+        Your relationship to the thesis <span className="text-accent-deep">*</span>
+        <select
+          value={relationship}
+          onChange={(event) => {
+            setRelationship(event.target.value as EvidenceRelationship | "");
+            setConfirmMessage(null);
+          }}
+          className="mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm font-normal text-ink outline-none focus:border-accent"
+        >
+          <option value="">Choose one</option>
+          <option value="supports">Supports</option>
+          <option value="weakens">Weakens</option>
+          <option value="neutral">Neutral</option>
+        </select>
+      </label>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={addObservation}
+          disabled={!canAdd || !draftObservation.trim() || !relationship}
+          className="rounded-xl bg-accent px-3 py-2 text-xs font-medium text-paper transition enabled:hover:bg-accent-deep disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          {observationInThesis ? "Update in thesis" : "Add to thesis"}
+        </button>
+        {observationInThesis && (
+          <button type="button" onClick={removeObservation} className="rounded-xl border border-line px-3 py-2 text-xs text-ink transition hover:bg-mist focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            Remove from thesis
+          </button>
+        )}
+      </div>
+      {confirmMessage && <p className="mt-2 text-[11px] text-accent-deep" role="status">{confirmMessage}</p>}
+      {observationInThesis && (
+        <p className="mt-2 text-[11px] text-muted">
+          Currently in thesis: “{performanceObservation}”
+          {performanceEvidence && ` (${performanceEvidence.relationship})`}
+        </p>
+      )}
     </section>
   );
 }
@@ -866,10 +1125,14 @@ function StateBanner({
 function RevenueLineChart({
   points,
   currency,
+  label,
+  displayFormat = "currency",
   caption,
 }: {
   points: Array<{ fiscalYear: string; fiscalYearEnd: number; value: number }>;
   currency: string;
+  label: string;
+  displayFormat?: string;
   caption: string;
 }) {
   const gradientId = useId();
@@ -909,7 +1172,7 @@ function RevenueLineChart({
         aria-label={points
           .map(
             (p) =>
-              `${p.fiscalYear}: ${formatExactCurrency(p.value, currency)}`,
+              `${label} ${p.fiscalYear}: ${formatAppleMetricValue(p.value, displayFormat, currency).exact}`,
           )
           .join("; ")}
         className="h-auto w-full"
@@ -940,7 +1203,7 @@ function RevenueLineChart({
                 className="fill-[var(--muted)]"
                 fontSize="9"
               >
-                {formatCompactCurrency(tick, currency)}
+                {formatAppleMetricValue(tick, displayFormat, currency).compact}
               </text>
             </g>
           );
@@ -967,7 +1230,7 @@ function RevenueLineChart({
               strokeWidth="1.6"
             >
               <title>
-                {c.fiscalYear}: {formatExactCurrency(c.value, currency)}
+                {c.fiscalYear}: {formatAppleMetricValue(c.value, displayFormat, currency).exact}
               </title>
             </circle>
             <text
@@ -986,7 +1249,10 @@ function RevenueLineChart({
         Accessible data table alternative is available via the Table tab.
         Values:{" "}
         {points
-          .map((p) => `${p.fiscalYear} ${formatExactCurrency(p.value, currency)}`)
+          .map(
+            (p) =>
+              `${p.fiscalYear} ${formatAppleMetricValue(p.value, displayFormat, currency).exact}`,
+          )
           .join(", ")}
         .
       </p>
@@ -1053,11 +1319,15 @@ function RevenueTable({
 function AppleRevenueTable({
   points,
   currency,
+  metricLabel,
+  displayFormat,
   expandedFilingYear,
   setExpandedFilingYear,
 }: {
   points: AppleFinancialPoint[];
   currency: string;
+  metricLabel: string;
+  displayFormat: string;
   expandedFilingYear: string | null;
   setExpandedFilingYear: (value: string | null) => void;
 }) {
@@ -1065,7 +1335,8 @@ function AppleRevenueTable({
     <div className="overflow-x-auto rounded-xl border border-line">
       <table className="w-full min-w-[280px] border-collapse text-left text-xs">
         <caption className="border-b border-line px-3 py-2 text-left text-[11px] text-muted">
-          Exact annual revenue and year-over-year growth from API (SEC-sourced)
+          Exact annual {metricLabel.toLowerCase()} and year-over-year growth from
+          API (SEC-sourced)
         </caption>
         <thead className="bg-mist text-[11px] text-muted">
           <tr>
@@ -1073,7 +1344,7 @@ function AppleRevenueTable({
               Fiscal year
             </th>
             <th scope="col" className="px-3 py-2 font-medium">
-              Revenue
+              {metricLabel}
             </th>
             <th scope="col" className="px-3 py-2 font-medium">
               YoY
@@ -1092,9 +1363,9 @@ function AppleRevenueTable({
                   {point.fiscalYear}
                 </th>
                 <td className="px-3 py-2 align-top tabular-nums text-ink">
-                  {formatExactCurrency(point.value, currency)}
+                  {formatAppleMetricValue(point.value, displayFormat, currency).exact}
                   <span className="mt-0.5 block text-[10px] text-muted">
-                    {formatCompactCurrency(point.value, currency)}
+                    {formatAppleMetricValue(point.value, displayFormat, currency).compact}
                   </span>
                 </td>
                 <td className="px-3 py-2 align-top tabular-nums text-ink">

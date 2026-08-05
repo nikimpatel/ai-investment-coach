@@ -1,7 +1,11 @@
 "use client";
 
 import { AlertCircle, Sparkles } from "@/components/ui/icons";
-import type { ResearchAnswers, ThesisDraft } from "@/lib/types";
+import type {
+  EvidenceRelationship,
+  ResearchAnswers,
+  ThesisDraft,
+} from "@/lib/types";
 
 interface ThesisBuilderProps {
   thesis: ThesisDraft;
@@ -12,7 +16,10 @@ interface ThesisBuilderProps {
 }
 
 const fields: {
-  key: Exclude<keyof ThesisDraft, "performanceObservation">;
+  key: Exclude<
+    keyof ThesisDraft,
+    "performanceObservation" | "performanceEvidence"
+  >;
   label: string;
   hint: string;
 }[] = [
@@ -114,16 +121,64 @@ export function ThesisBuilder({
           <textarea
             value={thesis.performanceObservation}
             onChange={(event) =>
-              onChange({ performanceObservation: event.target.value })
+              onChange({
+                performanceObservation: event.target.value,
+                performanceEvidence: thesis.performanceEvidence
+                  ? {
+                      ...thesis.performanceEvidence,
+                      text: event.target.value,
+                    }
+                  : null,
+              })
             }
             rows={3}
             placeholder="No performance observation added yet. You can add one from the Finance step."
             className="mt-1.5 w-full resize-none rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-accent"
           />
+          {thesis.performanceEvidence && (
+            <div className="mt-2 rounded-lg border border-line bg-paper px-2.5 py-2 text-[11px] leading-relaxed text-muted">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
+                <dt className="font-medium text-ink">Company</dt>
+                <dd>{thesis.performanceEvidence.company}</dd>
+                <dt className="font-medium text-ink">Metric</dt>
+                <dd>{thesis.performanceEvidence.metricOrMargin}</dd>
+                <dt className="font-medium text-ink">Years</dt>
+                <dd>{thesis.performanceEvidence.fiscalYears}</dd>
+                <dt className="font-medium text-ink">Values</dt>
+                <dd>{thesis.performanceEvidence.exactValues}</dd>
+                <dt className="font-medium text-ink">Source</dt>
+                <dd>{thesis.performanceEvidence.sourceType}</dd>
+              </dl>
+              <label className="mt-2 block">
+                <span className="font-medium text-ink">Your relationship</span>
+                <select
+                  value={thesis.performanceEvidence.relationship}
+                  onChange={(event) =>
+                    onChange({
+                      performanceEvidence: {
+                        ...thesis.performanceEvidence!,
+                        relationship: event.target.value as EvidenceRelationship,
+                      },
+                    })
+                  }
+                  className="mt-1 block rounded-lg border border-line bg-paper px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                >
+                  <option value="supports">Supports</option>
+                  <option value="weakens">Weakens</option>
+                  <option value="neutral">Neutral</option>
+                </select>
+              </label>
+            </div>
+          )}
           {thesis.performanceObservation.trim().length > 0 && (
             <button
               type="button"
-              onClick={() => onChange({ performanceObservation: "" })}
+              onClick={() =>
+                onChange({
+                  performanceObservation: "",
+                  performanceEvidence: null,
+                })
+              }
               className="mt-2 text-[11px] font-medium text-accent-deep underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               Remove observation
