@@ -23,6 +23,7 @@ public static class DependencyInjection
         var sec = configuration.GetSection(SecOptions.SectionName).Get<SecOptions>() ?? new SecOptions();
 
         services.AddSingleton<IFinancialDataCache, MemoryFinancialDataCache>();
+        services.AddSingleton<ICompanyFactsCache, MemoryCompanyFactsCache>();
         services.AddSingleton<IFinancialMetricsCalculator, FinancialMetricsCalculator>();
         services.AddSingleton<IXbrlKpiNormalizer, XbrlKpiNormalizer>();
         services.AddScoped<IFinancialFactsProvider, SecFinancialFactsProvider>();

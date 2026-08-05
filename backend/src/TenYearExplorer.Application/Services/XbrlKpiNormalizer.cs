@@ -1,11 +1,12 @@
 using TenYearExplorer.Application.Abstractions;
-using TenYearExplorer.Application.Revenue;
+using TenYearExplorer.Application.Metrics;
 using TenYearExplorer.Domain.Models;
 
 namespace TenYearExplorer.Application.Services;
 
 /// <summary>
-/// Deterministic annual revenue normalization from SEC company-facts candidates.
+/// Deterministic annual KPI normalization from SEC company-facts candidates.
+/// Shared pipeline for all Sprint 2 allowlisted metrics.
 /// </summary>
 public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
 {
@@ -13,8 +14,25 @@ public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
     private const int MinAnnualDays = 350;
     private const int MaxAnnualDays = 380;
 
+    /// <summary>Common forward stock-split factors used for deterministic EPS basis detection.</summary>
+    private static readonly int[] CommonSplitFactors = [2, 3, 4, 5, 7, 10];
+
+    /// <summary>Tight tolerance when matching own-period vs later comparative restatement.</summary>
+    private const decimal SplitComparativeTolerance = 0.03m;
+
+    /// <summary>Looser tolerance for consecutive-year discontinuity (earnings also move in the split year).</summary>
+    private const decimal SplitDiscontinuityTolerance = 0.15m;
+
+    /// <summary>Sprint 1 compatibility wrapper.</summary>
     public NormalizationResult NormalizeAnnualRevenue(
         IReadOnlyList<RawSecFact> facts,
+        int years,
+        DateOnly asOfDate) =>
+        NormalizeAnnual(facts, SupportedMetrics.RevenueDefinition, years, asOfDate);
+
+    public NormalizationResult NormalizeAnnual(
+        IReadOnlyList<RawSecFact> facts,
+        MetricDefinition metric,
         int years,
         DateOnly asOfDate)
     {
@@ -26,9 +44,17 @@ public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
         }
 
         var acceptedForms = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "10-K", "10-K/A" };
-        var conceptPriority = RevenueConceptMapping.OrderedConcepts
+        var conceptPriority = metric.OrderedConcepts
             .Select((c, i) => (Concept: c, Priority: i))
             .ToDictionary(x => x.Concept, x => x.Priority, StringComparer.OrdinalIgnoreCase);
+        var acceptedUnits = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { metric.ReportingUnit };
+
+        // Diluted EPS: accept only USD/shares; never basic EPS or monetary USD totals.
+        if (metric.ValueType == MetricValueType.PerShare)
+        {
+            acceptedUnits.Add("USD/shares");
+            acceptedUnits.Add("USD / shares");
+        }
 
         var eligible = new List<RawSecFact>();
         foreach (var fact in facts)
@@ -38,11 +64,11 @@ public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
                 continue;
             }
 
-            if (!string.Equals(fact.Unit, "USD", StringComparison.OrdinalIgnoreCase))
+            if (!acceptedUnits.Contains(fact.Unit))
             {
                 warnings.Add(new StructuredWarning(
                     "INVALID_UNIT",
-                    $"Excluded fact with unit '{fact.Unit}'.",
+                    $"Excluded fact with unit '{fact.Unit}' for metric '{metric.Code}'.",
                     Concept: fact.Concept));
                 continue;
             }
@@ -85,7 +111,6 @@ public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
             eligible.Add(fact);
         }
 
-        // Group by period-end (fiscal period identity). Do not trust SEC fy alone.
         var groups = eligible
             .GroupBy(f => f.PeriodEnd)
             .OrderBy(g => g.Key)
@@ -99,7 +124,7 @@ public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
             var fiscalLabel = $"FY{fiscalYearEndYear}";
 
             var candidates = group.ToList();
-            var chosen = SelectReliableCandidate(candidates, fiscalYearEndYear, warnings);
+            var chosen = SelectReliableCandidate(candidates, fiscalYearEndYear, metric, warnings);
             if (chosen is null)
             {
                 warnings.Add(new StructuredWarning(
@@ -109,21 +134,26 @@ public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
                 continue;
             }
 
-            // Prefer highest-priority concept among equally reliable candidates already handled in Select.
+            var isComparative = chosen.ReportedFiscalYear != fiscalYearEndYear;
             selected.Add(new NormalizedAnnualPoint(
                 FiscalYearLabel: fiscalLabel,
                 FiscalYearEndYear: fiscalYearEndYear,
                 PeriodStart: chosen.PeriodStart,
                 PeriodEnd: chosen.PeriodEnd,
                 Value: chosen.Value,
-                Unit: chosen.Unit,
+                Unit: NormalizeUnit(chosen.Unit, metric),
                 Concept: chosen.Concept,
                 FilingDate: chosen.Filed,
                 Form: chosen.Form,
-                Accession: chosen.Accession));
+                Accession: chosen.Accession,
+                IsComparative: isComparative));
         }
 
-        // Latest N completed fiscal years, chronological ascending.
+        if (metric.ValueType == MetricValueType.PerShare)
+        {
+            selected = EnforcePerShareSplitComparability(selected, eligible, warnings);
+        }
+
         var latest = selected
             .OrderByDescending(p => p.PeriodEnd)
             .Take(years)
@@ -134,27 +164,22 @@ public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
         {
             warnings.Add(new StructuredWarning(
                 "INSUFFICIENT_HISTORY",
-                $"Normalized {latest.Count} completed annual periods; requested {years}."));
+                $"Normalized {latest.Count} completed annual periods for '{metric.Code}'; requested {years}."));
         }
 
         return new NormalizationResult(latest, warnings);
     }
 
-    /// <summary>
-    /// Prefer the company's own-period 10-K (or amending 10-K/A) over later comparative restatements.
-    /// Do not automatically pick the most recently filed value.
-    /// </summary>
+    private static string NormalizeUnit(string unit, MetricDefinition metric) =>
+        metric.ValueType == MetricValueType.PerShare ? metric.ReportingUnit : unit;
+
     private static RawSecFact? SelectReliableCandidate(
         IReadOnlyList<RawSecFact> candidates,
         int fiscalYearEndYear,
+        MetricDefinition metric,
         List<StructuredWarning> warnings)
     {
-        if (candidates.Count == 1)
-        {
-            return candidates[0];
-        }
-
-        var conceptPriority = RevenueConceptMapping.OrderedConcepts
+        var conceptPriority = metric.OrderedConcepts
             .Select((c, i) => (Concept: c, Priority: i))
             .ToDictionary(x => x.Concept, x => x.Priority, StringComparer.OrdinalIgnoreCase);
 
@@ -163,13 +188,49 @@ public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
             : form.Equals("10-K", StringComparison.OrdinalIgnoreCase) ? 1
             : 9;
 
-        // Own-period filings: reported FY matches period-end year (Apple FY ends in calendar year of FY label).
         var ownPeriod = candidates
             .Where(c => c.ReportedFiscalYear == fiscalYearEndYear)
             .ToList();
         var comparative = candidates
             .Where(c => c.ReportedFiscalYear != fiscalYearEndYear)
             .ToList();
+
+        // Diluted EPS: when later comparative facts restate prior years on a post-split basis
+        // (~integer factor vs own-period), prefer those SEC restatements over pre-split own-period.
+        if (metric.ValueType == MetricValueType.PerShare
+            && ownPeriod.Count > 0
+            && comparative.Count > 0)
+        {
+            var splitAdjusted = FindSplitAdjustedComparatives(ownPeriod, comparative, SplitComparativeTolerance);
+            if (splitAdjusted.Count > 0)
+            {
+                var preferred = splitAdjusted
+                    .OrderByDescending(c => c.Filed)
+                    .ThenByDescending(c => c.Accession, StringComparer.Ordinal)
+                    .ThenBy(c => FormRank(c.Form))
+                    .First();
+
+                warnings.Add(new StructuredWarning(
+                    "SPLIT_ADJUSTED_COMPARATIVE_PREFERRED",
+                    $"Used later split-adjusted comparative Diluted EPS for FY{fiscalYearEndYear} from a post-split 10-K restatement instead of the pre-split own-period reporting basis.",
+                    FiscalYear: $"FY{fiscalYearEndYear}",
+                    Concept: preferred.Concept));
+                return preferred;
+            }
+        }
+
+        if (candidates.Count == 1)
+        {
+            if (ownPeriod.Count == 0)
+            {
+                warnings.Add(new StructuredWarning(
+                    "COMPARATIVE_ONLY",
+                    $"No own-period 10-K candidate for FY{fiscalYearEndYear}; evaluating comparative facts cautiously.",
+                    FiscalYear: $"FY{fiscalYearEndYear}"));
+            }
+
+            return candidates[0];
+        }
 
         IReadOnlyList<RawSecFact> pool = ownPeriod.Count > 0 ? ownPeriod : candidates;
         if (ownPeriod.Count == 0)
@@ -188,8 +249,6 @@ public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
                 FiscalYear: $"FY{fiscalYearEndYear}"));
         }
 
-        // Within pool: prefer higher-priority concept, then 10-K/A over 10-K when both own-period,
-        // then earlier filing date (closer to period) rather than newest comparative.
         var ordered = pool
             .OrderBy(c => conceptPriority.GetValueOrDefault(c.Concept, 99))
             .ThenBy(c => FormRank(c.Form))
@@ -205,7 +264,6 @@ public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
         var distinctValues = bestConceptPeers.Select(c => c.Value).Distinct().ToList();
         if (distinctValues.Count > 1)
         {
-            // Same concept, conflicting values: prefer own-period 10-K/A then 10-K; if still conflict, warn + exclude.
             var amendments = bestConceptPeers
                 .Where(c => c.Form.Equals("10-K/A", StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(c => c.Filed)
@@ -252,5 +310,164 @@ public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
         }
 
         return best;
+    }
+
+    /// <summary>
+    /// Keep only a contiguous Diluted EPS series on one reporting basis.
+    /// After per-year split-adjusted comparative preference, cut at the <b>last</b>
+    /// split-scale YoY discontinuity in the selected series (companies may have multiple
+    /// historical splits; using the earliest restatement year would re-introduce later mixes).
+    /// </summary>
+    private static List<NormalizedAnnualPoint> EnforcePerShareSplitComparability(
+        List<NormalizedAnnualPoint> selected,
+        IReadOnlyList<RawSecFact> eligible,
+        List<StructuredWarning> warnings)
+    {
+        if (selected.Count < 2)
+        {
+            return selected;
+        }
+
+        var yearsWithSplitRestatementEvidence = eligible
+            .GroupBy(f => f.PeriodEnd.Year)
+            .Where(g =>
+            {
+                var own = g.Where(c => c.ReportedFiscalYear == g.Key).ToList();
+                var comparative = g.Where(c => c.ReportedFiscalYear != g.Key).ToList();
+                return own.Count > 0
+                       && comparative.Count > 0
+                       && FindSplitAdjustedComparatives(own, comparative, SplitComparativeTolerance).Count > 0;
+            })
+            .Select(g => g.Key)
+            .ToHashSet();
+
+        int? lastDiscontinuityExcludeThroughFy = null;
+        string? discontinuityMessage = null;
+        string? discontinuityConcept = null;
+        string? discontinuityFiscalLabel = null;
+
+        for (var i = 1; i < selected.Count; i++)
+        {
+            var prev = selected[i - 1];
+            var curr = selected[i];
+            if (prev.Value <= 0 || curr.Value <= 0 || prev.Value <= curr.Value)
+            {
+                continue;
+            }
+
+            if (!IsSplitRatio(prev.Value, curr.Value, SplitDiscontinuityTolerance, out var factor))
+            {
+                continue;
+            }
+
+            // Require nearby SEC restatement evidence so ordinary large earnings drops are not cut.
+            var evidenceNearby =
+                yearsWithSplitRestatementEvidence.Contains(prev.FiscalYearEndYear)
+                || yearsWithSplitRestatementEvidence.Contains(curr.FiscalYearEndYear)
+                || yearsWithSplitRestatementEvidence.Contains(prev.FiscalYearEndYear - 1)
+                || yearsWithSplitRestatementEvidence.Contains(prev.FiscalYearEndYear + 1)
+                || yearsWithSplitRestatementEvidence.Contains(curr.FiscalYearEndYear - 1)
+                || yearsWithSplitRestatementEvidence.Contains(curr.FiscalYearEndYear + 1);
+            if (!evidenceNearby)
+            {
+                continue;
+            }
+
+            lastDiscontinuityExcludeThroughFy = prev.FiscalYearEndYear;
+            discontinuityFiscalLabel = curr.FiscalYearLabel;
+            discontinuityConcept = curr.Concept;
+            discontinuityMessage =
+                $"Detected a stock-split-scale Diluted EPS step (~{factor}-for-1) from {prev.FiscalYearLabel} ({prev.Value}) to {curr.FiscalYearLabel} ({curr.Value}); this is not treated as ordinary negative growth.";
+        }
+
+        if (lastDiscontinuityExcludeThroughFy is null)
+        {
+            return selected;
+        }
+
+        var keepFromFy = lastDiscontinuityExcludeThroughFy.Value + 1;
+        warnings.Add(new StructuredWarning(
+            "SPLIT_DISCONTINUITY_DETECTED",
+            discontinuityMessage!,
+            FiscalYear: discontinuityFiscalLabel,
+            Concept: discontinuityConcept));
+
+        var kept = selected.Where(p => p.FiscalYearEndYear >= keepFromFy).ToList();
+        var dropped = selected.Where(p => p.FiscalYearEndYear < keepFromFy).ToList();
+
+        foreach (var d in dropped)
+        {
+            warnings.Add(new StructuredWarning(
+                "SPLIT_INCOMPARABLE_YEAR_EXCLUDED",
+                $"Excluded {d.FiscalYearLabel} Diluted EPS because Company Facts do not provide a reliable post-split comparative value for that year; mixing pre- and post-split bases is not allowed.",
+                FiscalYear: d.FiscalYearLabel,
+                Concept: d.Concept));
+        }
+
+        if (dropped.Count > 0 && kept.Count > 0)
+        {
+            warnings.Add(new StructuredWarning(
+                "SPLIT_BASIS_NORMALIZED",
+                $"Diluted EPS series limited to {kept[0].FiscalYearLabel}–{kept[^1].FiscalYearLabel} on a split-adjusted comparable basis using authoritative SEC facts (later comparative restatements preferred when available)."));
+        }
+
+        return kept;
+    }
+
+    private static List<RawSecFact> FindSplitAdjustedComparatives(
+        IReadOnlyList<RawSecFact> ownPeriod,
+        IReadOnlyList<RawSecFact> comparative,
+        decimal tolerance)
+    {
+        var result = new List<RawSecFact>();
+        foreach (var own in ownPeriod)
+        {
+            if (own.Value <= 0)
+            {
+                continue;
+            }
+
+            foreach (var comp in comparative)
+            {
+                if (comp.Value <= 0 || comp.Filed <= own.Filed)
+                {
+                    continue;
+                }
+
+                // Forward split: later restatement is smaller (~ own / N).
+                if (own.Value > comp.Value
+                    && IsSplitRatio(own.Value, comp.Value, tolerance, out _))
+                {
+                    result.Add(comp);
+                }
+            }
+        }
+
+        return result
+            .GroupBy(c => (c.Filed, c.Accession, c.Value))
+            .Select(g => g.First())
+            .ToList();
+    }
+
+    private static bool IsSplitRatio(decimal larger, decimal smaller, decimal tolerance, out int factor)
+    {
+        factor = 0;
+        if (smaller <= 0 || larger <= 0 || larger <= smaller)
+        {
+            return false;
+        }
+
+        var ratio = larger / smaller;
+        foreach (var candidate in CommonSplitFactors)
+        {
+            var relativeError = Math.Abs(ratio - candidate) / candidate;
+            if (relativeError <= tolerance)
+            {
+                factor = candidate;
+                return true;
+            }
+        }
+
+        return false;
     }
 }

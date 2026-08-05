@@ -7,10 +7,15 @@ public sealed record FinancialHistoryResponse(
     string Cik,
     string Currency,
     string Metric,
+    string MetricLabel,
+    string MetricDescription,
+    string ReportingUnit,
+    string DisplayFormat,
     string Period,
     int Years,
     IReadOnlyList<FinancialHistoryPointDto> Points,
     FinancialHistorySummaryDto? Summary,
+    DerivedMarginsDto? Margins,
     string SourceProvider,
     DateTimeOffset RetrievedAtUtc,
     string CacheStatus,
@@ -42,6 +47,8 @@ public sealed record FinancialHistorySummaryDto(
     string StartFiscalYear,
     string EndFiscalYear,
     int Intervals,
+    decimal AbsoluteChange,
+    decimal? TotalPercentageChange,
     decimal? Cagr,
     string? CagrUnavailableReason,
     int PositiveGrowthYears,
@@ -51,5 +58,25 @@ public sealed record FinancialHistorySummaryDto(
     ExtremeYearDto? Lowest,
     LargestMoveDto? LargestIncrease,
     LargestMoveDto? LargestDecline);
+
+public sealed record MarginPointDto(
+    string FiscalYear,
+    decimal? MarginPercent,
+    decimal? ChangePercentagePoints,
+    bool IsAvailable);
+
+public sealed record DerivedMarginSeriesDto(
+    string Code,
+    string Label,
+    string Description,
+    IReadOnlyList<MarginPointDto> Points,
+    decimal? StartMarginPercent,
+    decimal? EndMarginPercent,
+    decimal? ChangePercentagePoints);
+
+public sealed record DerivedMarginsDto(
+    DerivedMarginSeriesDto? GrossMargin,
+    DerivedMarginSeriesDto? OperatingMargin,
+    DerivedMarginSeriesDto? NetMargin);
 
 public sealed record WarningDto(string Code, string Message, string? FiscalYear, string? Concept);

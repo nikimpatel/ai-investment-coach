@@ -39,6 +39,7 @@ public sealed class FinancialMetricsCalculator : IFinancialMetricsCalculator
             return (null, "Intervals must be positive.");
         }
 
+        // EPS-safe and monetary-safe: zero or negative start/end must not produce misleading CAGR.
         if (startValue <= 0 || endValue <= 0)
         {
             return (null, "CAGR requires positive start and end values.");
@@ -54,13 +55,18 @@ public sealed class FinancialMetricsCalculator : IFinancialMetricsCalculator
         if (points.Count == 0)
         {
             return new FinancialHistorySummary(
-                0, 0, string.Empty, string.Empty, 0, null, "No points.",
+                0, 0, string.Empty, string.Empty, 0, 0, null, null, "No points.",
                 0, 0, 0, null, null, null, null);
         }
 
         var start = points[0];
         var end = points[^1];
         var intervals = Math.Max(points.Count - 1, 0);
+        var absoluteChange = end.Value - start.Value;
+        decimal? totalPercentageChange = start.Value == 0
+            ? null
+            : absoluteChange / start.Value;
+
         var values = points.Select(p => p.Value).ToList();
         var yoy = ComputeYearOverYear(values);
         var (cagr, cagrReason) = intervals == 0
@@ -113,6 +119,8 @@ public sealed class FinancialMetricsCalculator : IFinancialMetricsCalculator
             StartFiscalYear: start.FiscalYearLabel,
             EndFiscalYear: end.FiscalYearLabel,
             Intervals: intervals,
+            AbsoluteChange: absoluteChange,
+            TotalPercentageChange: totalPercentageChange,
             Cagr: cagr,
             CagrUnavailableReason: cagrReason,
             PositiveGrowthYears: positive,
