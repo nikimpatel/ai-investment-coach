@@ -20,6 +20,9 @@ export interface AppleFinancialPoint {
   accession: string;
   concept: string;
   unit: string;
+  isDerived: boolean;
+  formula: string | null;
+  inputs: AppleDerivedInputTrace[] | null;
 }
 
 export interface AppleFinancialSummary {
@@ -72,6 +75,47 @@ export interface AppleDerivedMargins {
   netMargin: AppleMarginSeries | null;
 }
 
+export interface AppleDerivedInputTrace {
+  metric: string;
+  label: string;
+  value: number;
+  concept: string;
+  periodStart: string | null;
+  periodEnd: string;
+  filingDate: string;
+  form: string;
+  accession: string;
+}
+
+export interface AppleRelationshipPoint {
+  fiscalYear: string;
+  fiscalYearEnd: number;
+  periodEnd: string;
+  value: number | null;
+  isAvailable: boolean;
+  unavailableReason: string | null;
+  isNetCash: boolean;
+  inputs: AppleDerivedInputTrace[];
+}
+
+export interface AppleRelationshipSeries {
+  code: string;
+  label: string;
+  description: string;
+  formula: string;
+  reportingUnit: string;
+  displayFormat: string;
+  isNonGaap: boolean;
+  points: AppleRelationshipPoint[];
+}
+
+export interface AppleDerivedRelationships {
+  freeCashFlow: AppleRelationshipSeries | null;
+  cashConversion: AppleRelationshipSeries | null;
+  freeCashFlowMargin: AppleRelationshipSeries | null;
+  netDebt: AppleRelationshipSeries | null;
+}
+
 export interface AppleFinancialHistoryResponse {
   status: FinancialHistoryStatus;
   company: { name: string; symbol: string; cik: string };
@@ -88,6 +132,10 @@ export interface AppleFinancialHistoryResponse {
   points: AppleFinancialPoint[];
   summary: AppleFinancialSummary | null;
   margins: AppleDerivedMargins | null;
+  relationships: AppleDerivedRelationships | null;
+  isDerived: boolean;
+  isNonGaap: boolean;
+  formula: string | null;
   sourceProvider: string;
   retrievedAtUtc: string;
   cacheStatus: string;

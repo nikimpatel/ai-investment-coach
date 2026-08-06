@@ -73,6 +73,52 @@ public sealed class ApiIntegrationTests : IClassFixture<WebApplicationFactory<Pr
         Assert.All(payload.Points, p => Assert.Equal("EarningsPerShareDiluted", p.Concept));
     }
 
+    [Theory]
+    [InlineData("operating-cash-flow")]
+    [InlineData("capital-expenditure")]
+    [InlineData("free-cash-flow")]
+    [InlineData("cash-and-equivalents")]
+    [InlineData("total-debt")]
+    public async Task Sprint3_Metrics_Return_FrontendSafe_Traceable_Response(string metric)
+    {
+        var response = await _client.GetAsync(
+            $"/api/companies/AAPL/financial-history?metric={metric}&period=annual&years=10");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<FinancialHistoryResponse>(JsonOptions);
+        Assert.NotNull(payload);
+        Assert.Equal(metric, payload!.Metric);
+        Assert.Equal(10, payload.Points.Count);
+        Assert.NotNull(payload.Relationships);
+        Assert.NotNull(payload.Relationships!.FreeCashFlow);
+        Assert.NotNull(payload.Relationships.NetDebt);
+
+        var raw = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("ContactEmail", raw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ApplicationName", raw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"facts\"", raw, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task FreeCashFlow_Response_Exposes_Formula_NonGaap_And_Input_Trace()
+    {
+        var response = await _client.GetAsync(
+            "/api/companies/AAPL/financial-history?metric=free-cash-flow&period=annual&years=10");
+        var payload = await response.Content.ReadFromJsonAsync<FinancialHistoryResponse>(JsonOptions);
+
+        Assert.NotNull(payload);
+        Assert.True(payload!.IsDerived);
+        Assert.True(payload.IsNonGaap);
+        Assert.Equal(
+            "Free Cash Flow = Operating Cash Flow − Capital Expenditure",
+            payload.Formula);
+        Assert.All(payload.Points, point =>
+        {
+            Assert.True(point.IsDerived);
+            Assert.Equal(2, point.Inputs!.Count);
+        });
+    }
+
     [Fact]
     public async Task Second_Request_Reports_Cache_Hit()
     {

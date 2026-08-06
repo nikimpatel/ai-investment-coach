@@ -65,6 +65,12 @@ public sealed class LiveSecIntegrationTests
         Assert.True(facts.Facts["us-gaap"].ContainsKey("OperatingIncomeLoss"));
         Assert.True(facts.Facts["us-gaap"].ContainsKey("NetIncomeLoss"));
         Assert.True(facts.Facts["us-gaap"].ContainsKey("EarningsPerShareDiluted"));
+        Assert.True(facts.Facts["us-gaap"].ContainsKey("NetCashProvidedByUsedInOperatingActivities"));
+        Assert.True(facts.Facts["us-gaap"].ContainsKey("PaymentsToAcquirePropertyPlantAndEquipment"));
+        Assert.True(facts.Facts["us-gaap"].ContainsKey("CashAndCashEquivalentsAtCarryingValue"));
+        Assert.True(facts.Facts["us-gaap"].ContainsKey("CommercialPaper"));
+        Assert.True(facts.Facts["us-gaap"].ContainsKey("LongTermDebtCurrent"));
+        Assert.True(facts.Facts["us-gaap"].ContainsKey("LongTermDebtNoncurrent"));
     }
 
     [Theory]
@@ -73,6 +79,11 @@ public sealed class LiveSecIntegrationTests
     [InlineData(SupportedMetrics.OperatingIncome)]
     [InlineData(SupportedMetrics.NetIncome)]
     [InlineData(SupportedMetrics.DilutedEps)]
+    [InlineData(SupportedMetrics.OperatingCashFlow)]
+    [InlineData(SupportedMetrics.CapitalExpenditure)]
+    [InlineData(SupportedMetrics.FreeCashFlow)]
+    [InlineData(SupportedMetrics.CashAndEquivalents)]
+    [InlineData(SupportedMetrics.TotalDebt)]
     public async Task Live_FinancialHistory_TenYears_For_Metric(string metric)
     {
         if (!LiveEnabled())

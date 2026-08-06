@@ -14,9 +14,11 @@ import {
   buildDefaultAppleObservation,
 } from "@/lib/apple-trend-copy";
 import {
+  APPLE_METRIC_GROUPS,
   APPLE_METRIC_OPTIONS,
   formatAppleMetricValue,
   formatMarginPercent,
+  formatNetDebtValue,
   formatPercentagePoints,
   type AppleMetricId,
 } from "@/lib/apple-metrics";
@@ -609,6 +611,7 @@ function ApplePanel({
       />
 
       <MarginSection data={data} explanations={marginExplanation} />
+      <CashAndFinancialHealthSection data={data} />
       <FollowUpQuestions />
       <AppleObservationEditor
         companyHint="Apple"
@@ -682,22 +685,38 @@ function AppleMetricSelector({
       <p id="apple-metric-selector-label" className="text-xs font-medium text-ink">
         Financial metric
       </p>
-      <div className="mt-1.5 flex flex-wrap gap-2" role="group" aria-label="Apple financial metric selector">
-        {APPLE_METRIC_OPTIONS.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            aria-pressed={metric === option.id}
-            onClick={() => onChange(option.id)}
-            className={`rounded-xl border px-3 py-2 text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
-              metric === option.id
-                ? "border-accent bg-accent/5 text-ink"
-                : "border-line text-muted hover:text-ink"
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
+      <div className="mt-2 space-y-3">
+        {APPLE_METRIC_GROUPS.map((group) => {
+          const options = APPLE_METRIC_OPTIONS.filter((o) => o.group === group.id);
+          return (
+            <div key={group.id}>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted">
+                {group.label}
+              </p>
+              <div
+                className="mt-1.5 flex flex-wrap gap-2"
+                role="group"
+                aria-label={`${group.label} metrics`}
+              >
+                {options.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    aria-pressed={metric === option.id}
+                    onClick={() => onChange(option.id)}
+                    className={`rounded-xl border px-3 py-2 text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                      metric === option.id
+                        ? "border-accent bg-accent/5 text-ink"
+                        : "border-line text-muted hover:text-ink"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
       {description && (
         <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
@@ -902,6 +921,128 @@ function MarginSection({
             <li key={line}>• {line}</li>
           ))}
         </ul>
+      )}
+    </section>
+  );
+}
+
+function relationshipSpan(
+  series: NonNullable<AppleFinancialHistoryResponse["relationships"]>["cashConversion"],
+): { start: number | null; end: number | null } {
+  if (!series) return { start: null, end: null };
+  const available = series.points.filter((p) => p.isAvailable && p.value !== null);
+  if (available.length === 0) return { start: null, end: null };
+  return {
+    start: available[0]!.value,
+    end: available[available.length - 1]!.value,
+  };
+}
+
+function CashAndFinancialHealthSection({
+  data,
+}: {
+  data: AppleFinancialHistoryResponse;
+}) {
+  const relationships = data.relationships;
+  if (!relationships) return null;
+
+  const cashConversion = relationships.cashConversion;
+  const fcfMargin = relationships.freeCashFlowMargin;
+  const netDebt = relationships.netDebt;
+  const fcf = relationships.freeCashFlow;
+
+  const hasAny =
+    (cashConversion?.points.some((p) => p.isAvailable) ?? false) ||
+    (fcfMargin?.points.some((p) => p.isAvailable) ?? false) ||
+    (netDebt?.points.some((p) => p.isAvailable) ?? false) ||
+    (fcf?.points.some((p) => p.isAvailable) ?? false);
+
+  if (!hasAny) return null;
+
+  const ccSpan = relationshipSpan(cashConversion);
+  const fcfMarginSpan = relationshipSpan(fcfMargin);
+  const netSpan = relationshipSpan(netDebt);
+  const latestNet = netDebt?.points.filter((p) => p.isAvailable).at(-1);
+
+  return (
+    <section
+      aria-labelledby="cash-health-heading"
+      className="rounded-xl border border-line bg-paper px-3 py-3"
+    >
+      <h4 id="cash-health-heading" className="text-sm font-medium text-ink">
+        Cash generation &amp; financial health
+      </h4>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted">
+        Derived from SEC facts. Free Cash Flow is non-GAAP (OCF − CapEx with CapEx as
+        positive cash spent). Net Debt = Total Debt − Cash; when cash exceeds debt the
+        UI shows net cash.
+      </p>
+      <div className="mt-2 space-y-2">
+        {fcf && (
+          <div className="rounded-lg bg-mist px-2.5 py-2 text-xs">
+            <p className="font-medium text-ink">
+              {fcf.label}
+              {fcf.isNonGaap ? (
+                <span className="ml-1 font-normal text-muted">(derived, non-GAAP)</span>
+              ) : null}
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted">{fcf.formula}</p>
+          </div>
+        )}
+        {cashConversion && (
+          <div className="rounded-lg bg-mist px-2.5 py-2 text-xs">
+            <p className="font-medium text-ink">{cashConversion.label}</p>
+            <p className="mt-0.5 tabular-nums text-ink">
+              {formatMarginPercent(ccSpan.start)} → {formatMarginPercent(ccSpan.end)}
+            </p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-muted">
+              {cashConversion.formula}. Zero or negative net income years are left
+              unavailable.
+            </p>
+          </div>
+        )}
+        {fcfMargin && (
+          <div className="rounded-lg bg-mist px-2.5 py-2 text-xs">
+            <p className="font-medium text-ink">{fcfMargin.label}</p>
+            <p className="mt-0.5 tabular-nums text-ink">
+              {formatMarginPercent(fcfMarginSpan.start)} →{" "}
+              {formatMarginPercent(fcfMarginSpan.end)}
+            </p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-muted">
+              {fcfMargin.formula}
+            </p>
+          </div>
+        )}
+        {netDebt && (
+          <div className="rounded-lg bg-mist px-2.5 py-2 text-xs">
+            <p className="font-medium text-ink">{netDebt.label} / Net Cash</p>
+            <p className="mt-0.5 tabular-nums text-ink">
+              {formatNetDebtValue(netSpan.start, (netSpan.start ?? 0) < 0, data.currency)}{" "}
+              →{" "}
+              {formatNetDebtValue(
+                netSpan.end,
+                latestNet?.isNetCash ?? (netSpan.end ?? 0) < 0,
+                data.currency,
+              )}
+            </p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-muted">
+              {netDebt.formula}. Latest:{" "}
+              {latestNet
+                ? formatNetDebtValue(
+                    latestNet.value,
+                    latestNet.isNetCash,
+                    data.currency,
+                  )
+                : "—"}
+              .
+            </p>
+          </div>
+        )}
+      </div>
+      {data.formula && (
+        <p className="mt-3 text-[11px] leading-relaxed text-muted">
+          Selected metric formula: {data.formula}
+        </p>
       )}
     </section>
   );
@@ -1404,6 +1545,35 @@ function AppleRevenueTable({
                         <dt className="inline text-ink/70">Concept: </dt>
                         <dd className="inline break-all">{point.concept}</dd>
                       </div>
+                      {point.isDerived && point.formula && (
+                        <div>
+                          <dt className="inline text-ink/70">Formula: </dt>
+                          <dd className="inline">{point.formula}</dd>
+                        </div>
+                      )}
+                      {point.inputs && point.inputs.length > 0 && (
+                        <div>
+                          <dt className="text-ink/70">SEC inputs:</dt>
+                          <dd>
+                            <ul className="mt-0.5 space-y-1">
+                              {point.inputs.map((input) => (
+                                <li key={`${input.metric}-${input.accession}`}>
+                                  {input.label}:{" "}
+                                  {formatAppleMetricValue(
+                                    input.value,
+                                    "currency",
+                                    currency,
+                                  ).exact}
+                                  {" · "}
+                                  <span className="break-all">
+                                    {input.concept} · {input.accession}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </dd>
+                        </div>
+                      )}
                     </dl>
                   )}
                 </td>

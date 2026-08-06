@@ -11,4 +11,7 @@ public sealed record FinancialHistoryPoint(
     string Form,
     string Accession,
     string Concept,
-    string Unit);
+    string Unit,
+    bool IsDerived = false,
+    string? Formula = null,
+    IReadOnlyList<DerivedInputTrace>? Inputs = null);

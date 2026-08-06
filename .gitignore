@@ -34,6 +34,12 @@ yarn-error.log*
 .env*
 !.env.example
 
+# Local SEC live captures (never commit full dumps / secrets)
+docs/sprint2/_live_companyfacts_full.json
+docs/sprint3/_live_companyfacts_full.json
+docs/sprint3/_live_concepts/
+docs/sprint3/_independent_*
+
 # .NET backend
 backend/**/bin/
 backend/**/obj/

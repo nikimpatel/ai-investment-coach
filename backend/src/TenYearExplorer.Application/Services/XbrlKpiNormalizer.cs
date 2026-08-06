@@ -6,7 +6,7 @@ namespace TenYearExplorer.Application.Services;
 
 /// <summary>
 /// Deterministic annual KPI normalization from SEC company-facts candidates.
-/// Shared pipeline for all Sprint 2 allowlisted metrics.
+/// Shared pipeline for Sprint 1–3 allowlisted metrics (duration and instant).
 /// </summary>
 public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
 {
@@ -84,19 +84,34 @@ public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
                 continue;
             }
 
-            if (fact.PeriodStart is null)
+            if (metric.PeriodType == MetricPeriodType.Instant)
             {
-                warnings.Add(new StructuredWarning(
-                    "MISSING_PERIOD_START",
-                    "Excluded fact missing period start; cannot verify annual duration.",
-                    Concept: fact.Concept));
-                continue;
+                // FY-end balances: require instant facts (no period start). Reject 10-Q via form/fp above.
+                if (fact.PeriodStart is not null)
+                {
+                    warnings.Add(new StructuredWarning(
+                        "INSTANT_DURATION_REJECTED",
+                        "Excluded duration-tagged fact for an instant (FY-end balance) metric.",
+                        Concept: fact.Concept));
+                    continue;
+                }
             }
-
-            var days = fact.PeriodEnd.DayNumber - fact.PeriodStart.Value.DayNumber;
-            if (days < MinAnnualDays || days > MaxAnnualDays)
+            else
             {
-                continue;
+                if (fact.PeriodStart is null)
+                {
+                    warnings.Add(new StructuredWarning(
+                        "MISSING_PERIOD_START",
+                        "Excluded fact missing period start; cannot verify annual duration.",
+                        Concept: fact.Concept));
+                    continue;
+                }
+
+                var days = fact.PeriodEnd.DayNumber - fact.PeriodStart.Value.DayNumber;
+                if (days < MinAnnualDays || days > MaxAnnualDays)
+                {
+                    continue;
+                }
             }
 
             if (fact.PeriodEnd > asOfDate)
@@ -135,12 +150,24 @@ public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
             }
 
             var isComparative = chosen.ReportedFiscalYear != fiscalYearEndYear;
+            var normalizedValue = metric.NormalizeToPositiveMagnitude
+                ? Math.Abs(chosen.Value)
+                : chosen.Value;
+            if (metric.NormalizeToPositiveMagnitude && chosen.Value < 0)
+            {
+                warnings.Add(new StructuredWarning(
+                    "CASH_OUTFLOW_SIGN_NORMALIZED",
+                    $"Converted negative cash-outflow presentation to a positive amount spent for {metric.Label}.",
+                    FiscalYear: fiscalLabel,
+                    Concept: chosen.Concept));
+            }
+
             selected.Add(new NormalizedAnnualPoint(
                 FiscalYearLabel: fiscalLabel,
                 FiscalYearEndYear: fiscalYearEndYear,
                 PeriodStart: chosen.PeriodStart,
                 PeriodEnd: chosen.PeriodEnd,
-                Value: chosen.Value,
+                Value: normalizedValue,
                 Unit: NormalizeUnit(chosen.Unit, metric),
                 Concept: chosen.Concept,
                 FilingDate: chosen.Filed,
@@ -264,6 +291,20 @@ public sealed class XbrlKpiNormalizer : IXbrlKpiNormalizer
         var distinctValues = bestConceptPeers.Select(c => c.Value).Distinct().ToList();
         if (distinctValues.Count > 1)
         {
+            if (ownPeriod.Count == 0)
+            {
+                var latestComparative = bestConceptPeers
+                    .OrderByDescending(c => c.Filed)
+                    .ThenByDescending(c => c.Accession, StringComparer.Ordinal)
+                    .First();
+                warnings.Add(new StructuredWarning(
+                    "COMPARATIVE_RESTATEMENT_PREFERRED",
+                    $"Used the latest 10-K comparative value for FY{fiscalYearEndYear} where comparative filings disagreed.",
+                    FiscalYear: $"FY{fiscalYearEndYear}",
+                    Concept: latestComparative.Concept));
+                return latestComparative;
+            }
+
             var amendments = bestConceptPeers
                 .Where(c => c.Form.Equals("10-K/A", StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(c => c.Filed)
