@@ -27,6 +27,7 @@ export const seededThesis: ThesisDraft = {
   openQuestions:
     "How concentrated is revenue in the top five customers? What is the true organic growth rate excluding acquisitions?",
   performanceObservation: "",
+  performanceEvidence: null,
 };
 
 export const historicalDecisions = [

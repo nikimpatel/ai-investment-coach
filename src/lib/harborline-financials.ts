@@ -3,7 +3,7 @@ import type { CompanyFinancialSeries, FinancialKpiOption } from "./financial-typ
 /**
  * Fictional demonstration series for Harborline Logistics.
  * Values are annual Revenue in AUD dollars for ten completed fiscal years.
- * Not real company data — invented for the Phase 0 prototype only.
+ * Not real company data — invented for the revenue-only demonstration.
  */
 export const harborlineRevenueSeries: CompanyFinancialSeries = {
   companyName: "Harborline Logistics",

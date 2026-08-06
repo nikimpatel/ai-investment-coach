@@ -1,3 +1,5 @@
+import type { AppleMetricId } from "./apple-metrics";
+
 export type FinancialHistoryStatus =
   | "Success"
   | "PartiallySupported"
@@ -26,6 +28,8 @@ export interface AppleFinancialSummary {
   startFiscalYear: string;
   endFiscalYear: string;
   intervals: number;
+  absoluteChange: number;
+  totalPercentageChange: number | null;
   cagr: number | null;
   cagrUnavailableReason: string | null;
   positiveGrowthYears: number;
@@ -45,6 +49,29 @@ export interface AppleFinancialSummary {
   } | null;
 }
 
+export interface AppleMarginPoint {
+  fiscalYear: string;
+  marginPercent: number | null;
+  changePercentagePoints: number | null;
+  isAvailable: boolean;
+}
+
+export interface AppleMarginSeries {
+  code: string;
+  label: string;
+  description: string;
+  points: AppleMarginPoint[];
+  startMarginPercent: number | null;
+  endMarginPercent: number | null;
+  changePercentagePoints: number | null;
+}
+
+export interface AppleDerivedMargins {
+  grossMargin: AppleMarginSeries | null;
+  operatingMargin: AppleMarginSeries | null;
+  netMargin: AppleMarginSeries | null;
+}
+
 export interface AppleFinancialHistoryResponse {
   status: FinancialHistoryStatus;
   company: { name: string; symbol: string; cik: string };
@@ -52,10 +79,15 @@ export interface AppleFinancialHistoryResponse {
   cik: string;
   currency: string;
   metric: string;
+  metricLabel: string;
+  metricDescription: string;
+  reportingUnit: string;
+  displayFormat: string;
   period: string;
   years: number;
   points: AppleFinancialPoint[];
   summary: AppleFinancialSummary | null;
+  margins: AppleDerivedMargins | null;
   sourceProvider: string;
   retrievedAtUtc: string;
   cacheStatus: string;
@@ -68,9 +100,11 @@ export interface AppleFinancialHistoryResponse {
   detail: string | null;
 }
 
-export async function fetchAppleRevenueHistory(): Promise<AppleFinancialHistoryResponse> {
+export async function fetchAppleFinancialHistory(
+  metric: AppleMetricId = "revenue",
+): Promise<AppleFinancialHistoryResponse> {
   const response = await fetch(
-    "/api/companies/AAPL/financial-history?metric=revenue&period=annual&years=10",
+    `/api/companies/AAPL/financial-history?metric=${encodeURIComponent(metric)}&period=annual&years=10`,
     {
       method: "GET",
       headers: { Accept: "application/json" },
@@ -80,4 +114,9 @@ export async function fetchAppleRevenueHistory(): Promise<AppleFinancialHistoryR
 
   const payload = (await response.json()) as AppleFinancialHistoryResponse;
   return payload;
+}
+
+/** @deprecated Use fetchAppleFinancialHistory */
+export async function fetchAppleRevenueHistory(): Promise<AppleFinancialHistoryResponse> {
+  return fetchAppleFinancialHistory("revenue");
 }

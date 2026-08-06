@@ -54,6 +54,7 @@ function createInitialState(): PrototypeState {
       valuation: "",
       openQuestions: seededThesis.openQuestions,
       performanceObservation: "",
+      performanceEvidence: null,
     },
     decision: { ...initialDecision },
     pattern: { ...initialPattern },
@@ -110,6 +111,13 @@ export function PrototypeApp({
             setState((prev) => ({
               ...prev,
               thesis: { ...prev.thesis, performanceObservation },
+            }))
+          }
+          performanceEvidence={state.thesis.performanceEvidence}
+          onEvidenceChange={(performanceEvidence) =>
+            setState((prev) => ({
+              ...prev,
+              thesis: { ...prev.thesis, performanceEvidence },
             }))
           }
           onBack={() => go("research")}
