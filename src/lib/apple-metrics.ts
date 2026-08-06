@@ -24,6 +24,8 @@ export interface AppleMetricOption {
   label: string;
   shortDescription: string;
   group: AppleMetricGroup;
+  derived?: boolean;
+  nonGaap?: boolean;
 }
 
 export const APPLE_METRIC_GROUPS: Array<{
@@ -83,6 +85,8 @@ export const APPLE_METRIC_OPTIONS: AppleMetricOption[] = [
     label: "Free Cash Flow",
     shortDescription: "Derived non-GAAP: Operating Cash Flow − CapEx.",
     group: "cash-generation",
+    derived: true,
+    nonGaap: true,
   },
   {
     id: "cash-and-equivalents",
@@ -95,6 +99,7 @@ export const APPLE_METRIC_OPTIONS: AppleMetricOption[] = [
     label: "Total Debt",
     shortDescription: "Commercial paper plus current and noncurrent term debt.",
     group: "financial-position",
+    derived: true,
   },
 ];
 

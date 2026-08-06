@@ -85,7 +85,7 @@ Total Debt = CommercialPaper + LongTermDebtCurrent + LongTermDebtNoncurrent
 | `dotnet restore` | Exit 0 |
 | `dotnet build` | Exit 0; 0 warnings / 0 errors |
 | `dotnet test` | **Passed 96 / Failed 0 / Skipped 0** |
-| Live SEC (`LiveSecIntegrationTests` with User Secrets; values not printed) | Opt-in; extended Theory includes Sprint 3 codes |
+| Live SEC (`LiveSecIntegrationTests` with User Secrets; values not printed) | **Passed 11 / Failed 0 / Skipped 0** |
 
 ### Frontend (repo root)
 
@@ -93,13 +93,19 @@ Total Debt = CommercialPaper + LongTermDebtCurrent + LongTermDebtNoncurrent
 | --- | --- |
 | `npm run typecheck` | Exit 0 |
 | `npm run lint` | Exit 0 |
-| `npm run build` | Run as part of final verification |
+| `npm run build` | Exit 0; production bundle and static generation passed |
 
 ---
 
 ## 7. Screenshots
 
-UI screenshots deferred if browser capture is unavailable in this session; API fixture verification covers metric allowlist, FCF formula/traces, debt components, and Diluted EPS regression. Screenshots may be added in a follow-up evidence commit if needed.
+Manual browser verification used the running fixture API plus the Next.js development server:
+
+- Apple (SEC) loaded all three selector groups and all five Sprint 3 metric controls.
+- The cash generation & financial health section displayed FCF, Cash Conversion, FCF Margin, and Net Debt.
+- Selecting Free Cash Flow showed the non-GAAP / derived description, formula, 10-year chart/table data, and thesis observation text.
+- Expanding a table row displayed both traced SEC inputs with concept, value, and accession.
+- Desktop and narrow viewport checks completed. Session screenshots were captured; repository image artifacts were intentionally not added.
 
 ---
 
@@ -108,7 +114,7 @@ UI screenshots deferred if browser capture is unavailable in this session; API f
 - No secrets in tracked files or API responses.
 - No frontend-trusted `userId` / `agencyId`.
 - No future-sprint features added early.
-- Independent review artifacts (`SPRINT3_INDEPENDENT_REVIEW.md`, `_independent_*`) left untracked / gitignored as pre-implementation history.
+- Pre-implementation `SPRINT3_INDEPENDENT_REVIEW.md` left untracked; generated `_independent_*` artifacts remain gitignored.
 
 ---
 
