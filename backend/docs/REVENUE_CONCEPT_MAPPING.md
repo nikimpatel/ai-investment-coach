@@ -1,8 +1,10 @@
-# Metric concept mapping (Sprint 1–2)
+# Metric concept mapping (Sprint 1–3)
 
-Internal allowlist codes: `revenue`, `gross-profit`, `operating-income`, `net-income`, `diluted-eps`.
+Internal allowlist codes: `revenue`, `gross-profit`, `operating-income`, `net-income`, `diluted-eps`,
+`operating-cash-flow`, `capital-expenditure`, `free-cash-flow`, `cash-and-equivalents`, `total-debt`.
 
-Source of truth for Apple concept presence: live SEC Company Facts for CIK `0000320193` (captured 2026-08-04).
+Source of truth for Apple concept presence: live SEC Company Facts / Company Concept for CIK `0000320193`
+(Sprint 2 capture 2026-08-04; Sprint 3 cash/debt concepts revalidated 2026-08-06).
 
 ## Revenue (`revenue`)
 
@@ -77,6 +79,52 @@ Computed after FY alignment of normalized series:
 
 Unsafe when revenue is zero/missing or period-ends mismatch → null + structured warning. Changes between years are **percentage points**, not percent-of-percent.
 
+## Operating Cash Flow (`operating-cash-flow`) — duration
+
+| Priority | Concept | Why accepted |
+| ---: | --- | --- |
+| 1 | `NetCashProvidedByUsedInOperatingActivities` | Primary operating cash flow tag in recent Apple 10-Ks. |
+| 2 | `NetCashProvidedByUsedInOperatingActivitiesContinuingOperations` | Own-period fallback when the primary tag lacks an own-period fact (Apple FY2016). |
+
+## Capital Expenditure (`capital-expenditure`) — duration
+
+| Priority | Concept | Why accepted |
+| ---: | --- | --- |
+| 1 | `PaymentsToAcquirePropertyPlantAndEquipment` | PPE cash purchases. Normalized to **positive cash spent** for FCF = OCF − CapEx. |
+
+## Free Cash Flow (`free-cash-flow`) — derived (requestable)
+
+Non-GAAP. Formula: `Operating Cash Flow − Capital Expenditure` (CapEx positive). Each API point retains SEC input traces (concept, accession, filing).
+
+## Cash & Equivalents (`cash-and-equivalents`) — instant
+
+| Priority | Concept | Why accepted |
+| ---: | --- | --- |
+| 1 | `CashAndCashEquivalentsAtCarryingValue` | FY-end balance-sheet instant. Facts with period start / 10-Q are rejected. |
+
+## Total Debt (`total-debt`) — derived aggregate (requestable)
+
+No reliable single Apple “total debt” concept covering commercial paper + term debt across the window.
+
+| Component | Concept | Role |
+| --- | --- | --- |
+| Commercial paper | `CommercialPaper` | Short-term interest-bearing |
+| Current term debt | `LongTermDebtCurrent` | Current portion of term debt |
+| Noncurrent term debt | `LongTermDebtNoncurrent` | Noncurrent term debt |
+
+Formula: sum of the three. **Not** `Liabilities` / total liabilities. Sparse `LongTermDebt` equals current+noncurrent term debt only and is **not** mixed into the sum (would omit commercial paper or double-count if combined incorrectly).
+
+## Sprint 3 derived relationships (also on API `relationships`)
+
+- Cash Conversion = OCF ÷ Net Income × 100 (unavailable when NI ≤ 0)
+- Free Cash Flow Margin = FCF ÷ Revenue × 100
+- Net Debt = Total Debt − Cash; negative → net cash presentation (`isNetCash`)
+
+## Instant vs duration (Sprint 3)
+
+- **Duration:** require period start; length 350–380 days; 10-K/10-K/A; `fp=FY`.
+- **Instant:** require **no** period start (FY-end snapshot); reject duration-tagged rows and 10-Q quarter-ends.
+
 ## Rejection rules (summary)
 
-- Wrong unit, quarterly duration, missing start, incomplete future period, non-10-K forms, unsupported concepts, ambiguous conflicting values, basic EPS for diluted metric.
+- Wrong unit, quarterly duration, missing start (duration), duration facts for instant metrics, incomplete future period, non-10-K forms, unsupported concepts, ambiguous conflicting values, basic EPS for diluted metric, total liabilities as debt.

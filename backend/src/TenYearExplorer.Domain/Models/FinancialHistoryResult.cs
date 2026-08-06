@@ -20,4 +20,8 @@ public sealed record FinancialHistoryResult(
     DateTimeOffset RetrievedAtUtc,
     CacheStatus CacheStatus,
     IReadOnlyList<StructuredWarning> Warnings,
-    string? Detail = null);
+    string? Detail = null,
+    DerivedRelationshipsResult? Relationships = null,
+    bool IsDerived = false,
+    bool IsNonGaap = false,
+    string? Formula = null);

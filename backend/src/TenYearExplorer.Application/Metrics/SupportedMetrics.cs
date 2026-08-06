@@ -6,6 +6,36 @@ public enum MetricValueType
     PerShare,
 }
 
+/// <summary>XBRL period style for annual normalization.</summary>
+public enum MetricPeriodType
+{
+    /// <summary>Flow over a fiscal year (income / cash-flow duration facts).</summary>
+    Duration,
+    /// <summary>Point-in-time FY-end balance (balance-sheet instant facts).</summary>
+    Instant,
+}
+
+/// <summary>Legacy alias used by some Sprint 3 call sites.</summary>
+public enum FactPeriodType
+{
+    Duration = MetricPeriodType.Duration,
+    Instant = MetricPeriodType.Instant,
+}
+
+public enum MetricComputationKind
+{
+    DirectConcept,
+    DerivedDifference,
+    AggregatedSum,
+}
+
+public enum DerivedMetricKind
+{
+    None,
+    FreeCashFlow,
+    TotalDebt,
+}
+
 public enum DerivedMarginKind
 {
     None,
@@ -15,7 +45,7 @@ public enum DerivedMarginKind
 }
 
 /// <summary>
-/// Strongly typed allowlist entry for Sprint 2 Apple annual metrics.
+/// Strongly typed allowlist entry for Apple annual metrics (Sprint 1–3).
 /// </summary>
 public sealed record MetricDefinition(
     string Code,
@@ -27,7 +57,13 @@ public sealed record MetricDefinition(
     IReadOnlyList<string> OrderedConcepts,
     bool YearOverYearApplicable,
     bool CagrApplicable,
-    DerivedMarginKind DerivedMargin);
+    DerivedMarginKind DerivedMargin,
+    MetricPeriodType PeriodType = MetricPeriodType.Duration,
+    MetricComputationKind ComputationKind = MetricComputationKind.DirectConcept,
+    bool NormalizeToPositiveMagnitude = false,
+    bool IsNonGaap = false,
+    string? Formula = null,
+    DerivedMetricKind Derivation = DerivedMetricKind.None);
 
 /// <summary>
 /// Explicit allowlist of supported financial-history metrics.
@@ -39,6 +75,11 @@ public static class SupportedMetrics
     public const string OperatingIncome = "operating-income";
     public const string NetIncome = "net-income";
     public const string DilutedEps = "diluted-eps";
+    public const string OperatingCashFlow = "operating-cash-flow";
+    public const string CapitalExpenditure = "capital-expenditure";
+    public const string FreeCashFlow = "free-cash-flow";
+    public const string CashAndEquivalents = "cash-and-equivalents";
+    public const string TotalDebt = "total-debt";
 
     public static readonly MetricDefinition RevenueDefinition = new(
         Code: Revenue,
@@ -105,6 +146,88 @@ public static class SupportedMetrics
         CagrApplicable: true,
         DerivedMargin: DerivedMarginKind.None);
 
+    public static readonly MetricDefinition OperatingCashFlowDefinition = new(
+        Code: OperatingCashFlow,
+        Label: "Operating Cash Flow",
+        Description: "Cash generated (or used) by Apple’s core operations during the fiscal year, from the cash flow statement.",
+        ValueType: MetricValueType.Monetary,
+        ReportingUnit: "USD",
+        DisplayFormat: "currency",
+        OrderedConcepts:
+        [
+            "NetCashProvidedByUsedInOperatingActivities",
+            "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+        ],
+        YearOverYearApplicable: true,
+        CagrApplicable: true,
+        DerivedMargin: DerivedMarginKind.None,
+        PeriodType: MetricPeriodType.Duration);
+
+    public static readonly MetricDefinition CapitalExpenditureDefinition = new(
+        Code: CapitalExpenditure,
+        Label: "Capital Expenditure",
+        Description: "Cash spent on property, plant, and equipment during the fiscal year. Shown as a positive cash outflow (amount spent).",
+        ValueType: MetricValueType.Monetary,
+        ReportingUnit: "USD",
+        DisplayFormat: "currency",
+        OrderedConcepts: ["PaymentsToAcquirePropertyPlantAndEquipment"],
+        YearOverYearApplicable: true,
+        CagrApplicable: true,
+        DerivedMargin: DerivedMarginKind.None,
+        PeriodType: MetricPeriodType.Duration,
+        NormalizeToPositiveMagnitude: true);
+
+    public static readonly MetricDefinition FreeCashFlowDefinition = new(
+        Code: FreeCashFlow,
+        Label: "Free Cash Flow",
+        Description: "Non-GAAP / derived: Operating Cash Flow − Capital Expenditure (CapEx as positive cash spent). Not a single SEC line item.",
+        ValueType: MetricValueType.Monetary,
+        ReportingUnit: "USD",
+        DisplayFormat: "currency",
+        OrderedConcepts: [],
+        YearOverYearApplicable: true,
+        CagrApplicable: true,
+        DerivedMargin: DerivedMarginKind.None,
+        PeriodType: MetricPeriodType.Duration,
+        ComputationKind: MetricComputationKind.DerivedDifference,
+        IsNonGaap: true,
+        Formula: "Free Cash Flow = Operating Cash Flow − Capital Expenditure",
+        Derivation: DerivedMetricKind.FreeCashFlow);
+
+    public static readonly MetricDefinition CashAndEquivalentsDefinition = new(
+        Code: CashAndEquivalents,
+        Label: "Cash & Equivalents",
+        Description: "Cash and cash equivalents at fiscal year-end (balance-sheet instant). Does not include marketable securities beyond cash equivalents.",
+        ValueType: MetricValueType.Monetary,
+        ReportingUnit: "USD",
+        DisplayFormat: "currency",
+        OrderedConcepts: ["CashAndCashEquivalentsAtCarryingValue"],
+        YearOverYearApplicable: true,
+        CagrApplicable: true,
+        DerivedMargin: DerivedMarginKind.None,
+        PeriodType: MetricPeriodType.Instant);
+
+    public static readonly MetricDefinition TotalDebtDefinition = new(
+        Code: TotalDebt,
+        Label: "Total Debt",
+        Description: "Derived interest-bearing debt: Commercial Paper + Current Term Debt + Noncurrent Term Debt. Not total liabilities.",
+        ValueType: MetricValueType.Monetary,
+        ReportingUnit: "USD",
+        DisplayFormat: "currency",
+        OrderedConcepts:
+        [
+            "CommercialPaper",
+            "LongTermDebtCurrent",
+            "LongTermDebtNoncurrent",
+        ],
+        YearOverYearApplicable: true,
+        CagrApplicable: true,
+        DerivedMargin: DerivedMarginKind.None,
+        PeriodType: MetricPeriodType.Instant,
+        ComputationKind: MetricComputationKind.AggregatedSum,
+        Formula: "Total Debt = Commercial Paper + Current Term Debt + Noncurrent Term Debt",
+        Derivation: DerivedMetricKind.TotalDebt);
+
     private static readonly IReadOnlyDictionary<string, MetricDefinition> ByCode =
         new Dictionary<string, MetricDefinition>(StringComparer.OrdinalIgnoreCase)
         {
@@ -113,9 +236,18 @@ public static class SupportedMetrics
             [OperatingIncome] = OperatingIncomeDefinition,
             [NetIncome] = NetIncomeDefinition,
             [DilutedEps] = DilutedEpsDefinition,
+            [OperatingCashFlow] = OperatingCashFlowDefinition,
+            [CapitalExpenditure] = CapitalExpenditureDefinition,
+            [FreeCashFlow] = FreeCashFlowDefinition,
+            [CashAndEquivalents] = CashAndEquivalentsDefinition,
+            [TotalDebt] = TotalDebtDefinition,
         };
 
     public static IReadOnlyCollection<MetricDefinition> All => ByCode.Values.ToList();
+
+    public static string SupportedCodesMessage =>
+        "Supported metrics: revenue, gross-profit, operating-income, net-income, diluted-eps, " +
+        "operating-cash-flow, capital-expenditure, free-cash-flow, cash-and-equivalents, total-debt.";
 
     public static bool TryGet(string? metricCode, out MetricDefinition definition)
     {

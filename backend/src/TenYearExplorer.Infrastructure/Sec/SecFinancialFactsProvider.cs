@@ -13,6 +13,7 @@ public sealed class SecFinancialFactsProvider : IFinancialFactsProvider
     private readonly ICompanyFactsCache _companyFactsCache;
     private readonly SecOptions _options;
     private readonly ILogger<SecFinancialFactsProvider> _logger;
+    private int _submissionsMetadataChecked;
 
     public SecFinancialFactsProvider(
         ISecEdgarClient client,
@@ -33,18 +34,22 @@ public sealed class SecFinancialFactsProvider : IFinancialFactsProvider
     {
         var factsDoc = await GetCompanyFactsCachedAsync(cik, cancellationToken);
 
-        // Submissions used for filing metadata cross-check when needed (presence logged; facts drive values).
-        try
+        // Submissions are only a metadata cross-check; Company Facts drive values.
+        // Check once per provider instance so a multi-metric derived request does not repeat SEC calls.
+        if (Interlocked.Exchange(ref _submissionsMetadataChecked, 1) == 0)
         {
-            var submissions = await _client.GetSubmissionsAsync(cik, cancellationToken);
-            _logger.LogInformation(
-                "Loaded submissions for {Name} with {Count} recent filings",
-                submissions.Name,
-                submissions.Filings?.Recent?.AccessionNumber.Count ?? 0);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Submissions metadata unavailable; continuing with company facts only");
+            try
+            {
+                var submissions = await _client.GetSubmissionsAsync(cik, cancellationToken);
+                _logger.LogInformation(
+                    "Loaded submissions for {Name} with {Count} recent filings",
+                    submissions.Name,
+                    submissions.Filings?.Recent?.AccessionNumber.Count ?? 0);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Submissions metadata unavailable; continuing with company facts only");
+            }
         }
 
         if (!factsDoc.Facts.TryGetValue("us-gaap", out var usGaap))

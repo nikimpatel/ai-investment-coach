@@ -31,7 +31,10 @@ public static class FinancialHistoryMapper
                 p.Form,
                 p.Accession,
                 p.Concept,
-                p.Unit)).ToList(),
+                p.Unit,
+                p.IsDerived,
+                p.Formula,
+                p.Inputs?.Select(MapInput).ToList())).ToList(),
             Summary: result.Summary is null ? null : new FinancialHistorySummaryDto(
                 result.Summary.StartValue,
                 result.Summary.EndValue,
@@ -56,6 +59,10 @@ public static class FinancialHistoryMapper
                     result.Summary.LargestDecline.AbsoluteChange,
                     result.Summary.LargestDecline.RelativeChange)),
             Margins: MapMargins(result.Margins),
+            Relationships: MapRelationships(result.Relationships),
+            IsDerived: result.IsDerived,
+            IsNonGaap: result.IsNonGaap,
+            Formula: result.Formula,
             SourceProvider: result.SourceProvider,
             RetrievedAtUtc: result.RetrievedAtUtc,
             CacheStatus: result.CacheStatus.ToString(),
@@ -95,6 +102,60 @@ public static class FinancialHistoryMapper
             series.EndMarginPercent,
             series.ChangePercentagePoints);
     }
+
+    private static DerivedRelationshipsDto? MapRelationships(
+        DerivedRelationshipsResult? relationships)
+    {
+        if (relationships is null)
+        {
+            return null;
+        }
+
+        return new DerivedRelationshipsDto(
+            MapRelationshipSeries(relationships.FreeCashFlow),
+            MapRelationshipSeries(relationships.CashConversion),
+            MapRelationshipSeries(relationships.FreeCashFlowMargin),
+            MapRelationshipSeries(relationships.NetDebt));
+    }
+
+    private static DerivedRelationshipSeriesDto? MapRelationshipSeries(
+        DerivedRelationshipSeries? series)
+    {
+        if (series is null)
+        {
+            return null;
+        }
+
+        return new DerivedRelationshipSeriesDto(
+            series.Code,
+            series.Label,
+            series.Description,
+            series.Formula,
+            series.ReportingUnit,
+            series.DisplayFormat,
+            series.IsNonGaap,
+            series.Points.Select(p => new DerivedRelationshipPointDto(
+                p.FiscalYear,
+                p.FiscalYearEnd,
+                p.PeriodEnd.ToString("yyyy-MM-dd"),
+                p.Value,
+                p.IsAvailable,
+                p.UnavailableReason,
+                p.IsNetCash,
+                p.Inputs.Select(MapInput).ToList())).ToList());
+    }
+
+    private static DerivedInputTraceDto MapInput(DerivedInputTrace input) =>
+        new(
+            input.Metric,
+            input.Label,
+            input.Value,
+            input.Concept,
+            input.PeriodStart?.ToString("yyyy-MM-dd"),
+            input.PeriodEnd.ToString("yyyy-MM-dd"),
+            input.FilingDate.ToString("yyyy-MM-dd"),
+            input.Form,
+            input.Accession);
 
     public static int ToHttpStatusCode(FinancialHistoryStatus status) =>
         status switch

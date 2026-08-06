@@ -44,15 +44,16 @@ public sealed class FinancialHistoryServiceTests
         var sut = CreateSut(useFixture: true, factsProvider: provider.Object, cache: cache);
 
         var first = await sut.GetHistoryAsync("AAPL", "revenue", "annual", 10, CancellationToken.None);
+        var callsAfterFirst = provider.Invocations.Count;
         var second = await sut.GetHistoryAsync("AAPL", "revenue", "annual", 10, CancellationToken.None);
 
         Assert.Equal(FinancialHistoryStatus.Success, first.Status);
         Assert.Equal(CacheStatus.Miss, first.CacheStatus);
         Assert.Equal(CacheStatus.Hit, second.CacheStatus);
-        // Metric fetch + four margin supporting fetches on first call only.
-        provider.Verify(
-            p => p.GetFactsAsync(It.IsAny<string>(), It.IsAny<MetricDefinition>(), It.IsAny<CancellationToken>()),
-            Times.Exactly(5));
+        // First call fetches primary metric + margin inputs + Sprint 3 relationship inputs.
+        // Second call must be served from the history cache (no additional provider calls).
+        Assert.True(callsAfterFirst >= 5);
+        Assert.Equal(callsAfterFirst, provider.Invocations.Count);
     }
 
     [Fact]

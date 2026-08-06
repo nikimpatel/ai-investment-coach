@@ -16,6 +16,10 @@ public sealed record FinancialHistoryResponse(
     IReadOnlyList<FinancialHistoryPointDto> Points,
     FinancialHistorySummaryDto? Summary,
     DerivedMarginsDto? Margins,
+    DerivedRelationshipsDto? Relationships,
+    bool IsDerived,
+    bool IsNonGaap,
+    string? Formula,
     string SourceProvider,
     DateTimeOffset RetrievedAtUtc,
     string CacheStatus,
@@ -35,7 +39,21 @@ public sealed record FinancialHistoryPointDto(
     string Form,
     string Accession,
     string Concept,
-    string Unit);
+    string Unit,
+    bool IsDerived,
+    string? Formula,
+    IReadOnlyList<DerivedInputTraceDto>? Inputs);
+
+public sealed record DerivedInputTraceDto(
+    string Metric,
+    string Label,
+    decimal Value,
+    string Concept,
+    string? PeriodStart,
+    string PeriodEnd,
+    string FilingDate,
+    string Form,
+    string Accession);
 
 public sealed record ExtremeYearDto(string FiscalYear, decimal Value);
 
@@ -78,5 +96,31 @@ public sealed record DerivedMarginsDto(
     DerivedMarginSeriesDto? GrossMargin,
     DerivedMarginSeriesDto? OperatingMargin,
     DerivedMarginSeriesDto? NetMargin);
+
+public sealed record DerivedRelationshipPointDto(
+    string FiscalYear,
+    int FiscalYearEnd,
+    string PeriodEnd,
+    decimal? Value,
+    bool IsAvailable,
+    string? UnavailableReason,
+    bool IsNetCash,
+    IReadOnlyList<DerivedInputTraceDto> Inputs);
+
+public sealed record DerivedRelationshipSeriesDto(
+    string Code,
+    string Label,
+    string Description,
+    string Formula,
+    string ReportingUnit,
+    string DisplayFormat,
+    bool IsNonGaap,
+    IReadOnlyList<DerivedRelationshipPointDto> Points);
+
+public sealed record DerivedRelationshipsDto(
+    DerivedRelationshipSeriesDto? FreeCashFlow,
+    DerivedRelationshipSeriesDto? CashConversion,
+    DerivedRelationshipSeriesDto? FreeCashFlowMargin,
+    DerivedRelationshipSeriesDto? NetDebt);
 
 public sealed record WarningDto(string Code, string Message, string? FiscalYear, string? Concept);
