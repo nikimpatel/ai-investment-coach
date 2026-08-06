@@ -711,6 +711,11 @@ function AppleMetricSelector({
                     }`}
                   >
                     {option.label}
+                    {option.derived ? (
+                      <span className="ml-1 text-[10px] font-normal text-muted">
+                        (derived{option.nonGaap ? ", non-GAAP" : ""})
+                      </span>
+                    ) : null}
                   </button>
                 ))}
               </div>
