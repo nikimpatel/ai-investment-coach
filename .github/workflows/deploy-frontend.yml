@@ -41,8 +41,13 @@ jobs:
       - name: Pull Vercel configuration
         run: vercel pull --yes --environment="${VERCEL_ENV}" --token="${{ secrets.VERCEL_INVESTMENT_COACH_TOKEN }}"
 
-      - name: Build
+      - name: Build preview
+        if: github.event_name != 'push'
         run: vercel build --token="${{ secrets.VERCEL_INVESTMENT_COACH_TOKEN }}"
+
+      - name: Build production
+        if: github.event_name == 'push'
+        run: vercel build --prod --token="${{ secrets.VERCEL_INVESTMENT_COACH_TOKEN }}"
 
       - name: Deploy preview
         if: github.event_name != 'push'
