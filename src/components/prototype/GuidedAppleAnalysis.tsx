@@ -989,11 +989,8 @@ function PostJudgmentScreen({
         <span className="block text-[10px] font-normal text-muted">
           A self-report, not a grade or correctness score.
         </span>
-        <input
-          type="range"
-          min={1}
-          max={10}
-          value={stage.judgment.confidence ?? 5}
+        <select
+          value={stage.judgment.confidence ?? ""}
           onChange={(event) =>
             onUpdate(
               updateJudgment(
@@ -1007,8 +1004,17 @@ function PostJudgmentScreen({
               ),
             )
           }
-          className="mt-2 w-full accent-accent"
-        />
+          className="mt-2 w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+        >
+          <option value="" disabled>
+            Choose confidence
+          </option>
+          {Array.from({ length: 10 }, (_, index) => index + 1).map((value) => (
+            <option key={value} value={value}>
+              {value} / 10
+            </option>
+          ))}
+        </select>
       </label>
       {stage.judgment.history.length > 0 && (
         <p className="text-[11px] text-muted">
