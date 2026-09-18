@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "noEmit": false,
+    "isolatedModules": false,
+    "incremental": false,
+    "outDir": ".test-dist",
+    "rootDir": ".",
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": [
+    "src/lib/apple-financial-api.ts",
+    "src/lib/apple-metrics.ts",
+    "src/lib/types.ts",
+    "src/lib/bias-library.ts",
+    "src/lib/guided-analogies.ts",
+    "src/lib/guided-analysis.ts",
+    "src/lib/guided-analysis-storage.ts",
+    "tests/**/*.test.ts"
+  ]
+}

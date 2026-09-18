@@ -42,6 +42,10 @@ jobs:
         if: steps.detect.outputs.present == 'true'
         run: npm ci
 
+      - name: Test
+        if: steps.detect.outputs.present == 'true'
+        run: npm test
+
       - name: Typecheck
         if: steps.detect.outputs.present == 'true'
         run: npm run typecheck
