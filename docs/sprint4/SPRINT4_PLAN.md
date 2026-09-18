@@ -1,6 +1,6 @@
 # Sprint 4 Plan — Guided Apple Analysis (Product Loop)
 
-**Status:** Planning only. Do not implement until this plan is accepted.  
+**Status:** Plan locked. Implementation may begin after this commit. Do not implement in the planning commit itself.  
 **Date:** 2026-09-18  
 **Canonical repo:** `C:\PersistentDev\ai-investment-coach` → `ai-investment-coach-gh`  
 **Prerequisite:** Sprint 3 closed. Independent review on `main` at `fc7c59b` (`docs/sprint3/SPRINT3_INDEPENDENT_REVIEW.md`).  
@@ -57,9 +57,10 @@ Landing page (unchanged)
 Continuation rules:
 
 - The learner can leave a stage with **Defer** or **Uncertain** and still advance.
-- The learner can exit guided analysis back to the Apple metric explorer without losing saved local state.
-- The learner can open Thesis / Decision / Reflect at any time via the existing step rail.
-- Restart walkthrough must offer to clear or keep the versioned Apple analysis store (see §10).
+- While guided analysis is open, hide the Harborline/Apple metric explorer and the regular 5-tab step rail. A dedicated compact guided-analysis header is the only in-phone chrome.
+- **Exit guide** returns to the existing Finance experience (explorer + regular rail) without losing saved analysis.
+- From that restored Finance experience the learner can open Thesis / Decision / Reflect. Returning to Finance resumes the exact guided screen they left (see locked decision 10).
+- **Restart walkthrough** resets Harborline/thesis/decision in-memory state and **keeps** the saved Apple guided analysis. Clearing Apple analysis is a separate, confirmed action: **Reset guided Apple analysis**.
 
 ---
 
@@ -69,10 +70,17 @@ Stay inside `PhoneFrame` (`max-w-[340px]`, ~640px tall scroll region). Do not ad
 
 ### 3.1 Chrome
 
+**When guided analysis is closed (default Finance):**
+
 - Keep the existing 5-tab rail: Research / Finance / Thesis / Decision / Reflect.
-- When guided analysis is active, Finance remains the current rail step.
-- Add a **compact analysis progress strip** under the rail (or under the Finance header): CoC · Bias intro · 1–5 · Review · Summary. This strip is text + progress only; it is not a sixth product step.
-- Primary actions sit at the bottom of the phone (`Back` / `Continue` / `Save to thesis`), matching current prototype footers.
+- Show the existing Harborline / Apple metric explorer.
+
+**When guided analysis is open:**
+
+- Hide the regular step rail and the Harborline/Apple metric explorer.
+- Show a dedicated compact guided-analysis header inside the phone: current screen name, progress (CoC · Bias intro · 1–5 · Review · Summary), **Exit guide**, and **Reset guided Apple analysis** (reset is also available from Summary).
+- Exit guide restores Finance + the regular rail. The next time the learner is on Finance, resume the exact guided screen (they re-enter automatically or via **Continue guided analysis** — implementation should prefer one-tap resume).
+- Primary actions sit at the bottom of the phone (`Back` / `Continue` / `Complete later` / `Save to thesis`).
 - Long content scrolls inside the existing overflow region. Stage facts stay above the fold when possible; judgments and bias checks sit below.
 
 ### 3.2 Screen types (one concern per screen)
@@ -88,7 +96,7 @@ Stay inside `PhoneFrame` (`max-w-[340px]`, ~640px tall scroll region). Do not ad
 | G. Stage interpretation | Confirm / correct / skip the deterministic reading | Confirm / Correct / Skip |
 | H. Pre-judgment bias check | One relevant bias prompt | Acknowledged / Noted / Skip check |
 | I. Stage judgment | Record / defer / uncertain | Required choice; notes optional except Record |
-| J. Post-judgment review | Counter-evidence, alternatives, missing info, mind-changer, confidence | Can be completed later if judgment is Defer |
+| J. Post-judgment review | Counter-evidence, alternatives, missing info, mind-changer, shared confidence | Complete / Complete later |
 | K. Bias and Counter-Evidence Review | All judgments + reflections | Edit links back into stages |
 | L. Apple Analysis Summary | Structured read-only composition of layers | Save selected evidence; Done |
 
@@ -101,7 +109,7 @@ Every block uses a persistent prefix:
 - `Fact`
 - `Calculation`
 - `Explanation`
-- `Analogy — not Apple evidence`
+- `Familiar comparison — not Apple evidence`
 - `Your judgment`
 - `Bias check`
 - `Counter-evidence`
@@ -115,11 +123,13 @@ Analogies use a sand/warning treatment, never the same accent used for SEC facts
 
 Circle of Competence (CoC) is **learner-authored**. The product does not score competence and does not tell the learner they are inside or outside Apple.
 
-### 4.1 Capture
+### 4.1 Capture (locked)
+
+**Locked decision 9:** Circle of Competence uses the suggested chips **plus** an optional note / free-text field. Do **not** ship free-text-only CoC.
 
 The learner selects zero or more chips and may add a short note.
 
-Suggested chips (editable copy, not a completeness claim):
+Suggested chips (editable copy, not a completeness claim; the chip + optional-note pattern itself is locked):
 
 - Consumer electronics as a user
 - Software / platforms as a user
@@ -234,17 +244,17 @@ Stage defaults:
 3. If they choose **Record**:
    - Show primary bias check.
    - They pick: **I’ll keep this in mind** / **I added a note** / **Skip this check**.
-   - Then judgment notes + confidence.
+   - Then judgment notes. Confidence is **not** collected as a second competing control here; the shared confidence value is recorded or updated in post-judgment reflection (§7.3).
 4. If they choose **Defer** or **Uncertain**:
    - Bias check is optional.
    - Notes optional.
-   - Stage is completable.
+   - Stage is completable. Shared confidence stays empty unless they later Record.
 
 ### 7.2 Judgment values
 
 | Value | Meaning | Minimum required fields |
 | --- | --- | --- |
-| `record` | Learner states a view about **this stage’s evidence**, not about buying Apple | Bias check + judgment text (≥ 1 sentence) + confidence 1–10 |
+| `record` | Learner states a view about **this stage’s evidence**, not about buying Apple | Bias check + judgment text (≥ 1 sentence). Shared confidence is set in post-judgment (or left unset if they choose Complete later) |
 | `defer` | Not judging this stage now | None beyond the choice |
 | `uncertain` | Evidence was reviewed; learner will not take a view | Optional note |
 
@@ -252,15 +262,17 @@ Judgment text must be framed as interpretation of **historical Apple financial e
 
 ### 7.3 Post-judgment (after Record, and encouraged after Uncertain)
 
-Five prompts, each a short text field:
+Prompts:
 
 1. **Counter-evidence** — which displayed fact or calculation could weaken the judgment?
 2. **Alternative explanations** — what else could produce the same numbers?
 3. **Missing information** — what is outside Sprint 1–3 scope?
 4. **What would change my mind** — a concrete future observation, not a price target
-5. **Confidence** — 1–10, with helper text that high confidence is a self-report, not a grade
+5. **Confidence** — the **one shared** 1–10 value for this material judgment. Helper text: this is a self-report, not a grade. If the learner already set confidence and later changes the judgment or this value, keep a revision indicator and a short history; do not silently overwrite the original.
 
-Deferral: post-judgment fields stay empty and appear as open items on the Review screen.
+**Complete later** is an explicit control. The learner may continue without filling all five fields. Entered fields are preserved. The stage and later Review/Summary must show **Review incomplete** and must never present the judgment as fully reviewed.
+
+If the learner later edits judgment text or confidence, store `revisedAt` plus prior `{ text, confidence, recordedAt }` entries. Show “Revised” next to the current value.
 
 ---
 
@@ -283,18 +295,24 @@ Each stage declares which existing endpoints / response slices it reads. The UI 
 1. **Fact block** — 10-year range, start/end, currency, source badge (`SEC EDGAR fixture` vs live), cache status.
 2. **Calculation block** — CAGR / YoY / margin / FCF / net debt already computed by the API.
 3. **Explanation block** — existing deterministic sentences. Learner Confirm / Correct / Skip.
-4. **Analogy block (optional)** — static, stage-specific metaphor. Visible only after a “Show an analogy” disclosure. Label: `Analogy — not Apple evidence`.
+4. **Familiar comparison block** — one of the five shipped draft analogies. Visible only after a “Show a familiar comparison” disclosure. Must include:
+   - Label: `Familiar comparison — not Apple evidence`
+   - The comparison sentence
+   - A **limitation** sentence explaining where the comparison may fail
+   - Storage as deterministic, editable content (`guided-analogies.ts` or equivalent). Not generated at runtime. Never written into SEC fact blocks, calculations, evidence packets, or thesis cards.
 5. Bias check and judgment as in §7.
 
-### 8.2 Analogy examples (illustrative; final copy in implementation)
+### 8.2 Shipped analogies (draft; editable content, not Apple evidence)
 
-- Revenue path: “A decade of takings at a shop, not next year’s takings.”
-- Margins: “How much of each dollar of sales is left after costs — not why customers came.”
-- Profit vs cash: “Profit is the report card; operating cash is money that actually arrived.”
-- FCF: “Cash left after maintenance-style spending on the shop — still not a valuation.”
-- Net debt: “What is owed minus cash in the till — not the worth of the brand.”
+Each row is one comparison + one limitation. Implementation may tighten wording but must keep both parts and the label.
 
-If analogy copy cannot stay this tightly scoped, ship the stage **without** an analogy rather than blurring layers.
+| Stage | Comparison | Limitation |
+| --- | --- | --- |
+| Revenue and growth | A decade of takings at a shop, not next year’s takings. | A shop’s till is local and simple; Apple’s sales mix, geographies, and accounting recognition are not. |
+| Profitability and margins | How much of each dollar of sales is left after costs — not why customers came. | Margin change can come from mix, one-offs, or cost timing; the comparison does not identify the cause. |
+| Profit versus cash | Profit is the report card; operating cash is money that actually arrived. | Accrual profit and cash can differ for many valid reasons; one year of gap is not proof of quality or fraud. |
+| CapEx and free cash flow | Cash left after spending on the shop’s tools — still not a valuation. | CapEx is normalized here as positive spend; this is not “maintenance vs growth” and not a price target. |
+| Cash, debt, position | What is owed minus cash in the till — not the worth of the brand. | Net debt ignores other assets, leases, and off-balance items; cash here is cash & equivalents only. |
 
 ### 8.3 Correcting an explanation
 
@@ -372,15 +390,21 @@ interface StageRecord {
   judgment: {
     status: "none" | "record" | "defer" | "uncertain";
     text: string;
-    confidence: number | null;
+    confidence: number | null; // shared; usually set/updated in post-judgment
+    revised: boolean;
+    history: Array<{
+      text: string;
+      confidence: number | null;
+      recordedAt: string;
+    }>;
   };
   post: {
     counterEvidence: string;
     alternativeExplanations: string;
     missingInformation: string;
     mindChanger: string;
-    confidence: number | null;
-    completed: boolean;
+    completed: boolean; // false when learner chose Complete later
+    completeLaterChosen: boolean;
   };
   evidencePacket?: EvidencePacket; // snapshot of facts shown, not a live recompute contract
 }
@@ -394,7 +418,8 @@ interface StageRecord {
 - Apple guided analysis lives beside it in `localStorage`.
 - Restart walkthrough:
   - Always reset in-memory Harborline/thesis/decision state (current behaviour).
-  - Prompt: **Keep Apple analysis** / **Clear Apple analysis**. Default: Keep.
+  - **Always keep** the saved Apple guided analysis. Do not prompt to clear it here.
+- **Reset guided Apple analysis** is a separate, clearly labelled action (guided header and/or Summary). It requires confirmation before wiping `aic.appleGuidedAnalysis.v1`.
 
 ### 9.5 No server identity
 
@@ -428,11 +453,13 @@ From Summary (and optionally from a stage footer):
 - Learner must still choose relationship: supports / weakens / neutral.
 - Analogies are **never** included in the thesis packet.
 
-### 10.3 Compatibility choice (open — see §20)
+### 10.3 Compatibility (locked)
 
-**Recommended default for implementation:** extend `ThesisDraft` with `analysisPackets: EvidencePacket[]` and keep the existing single `performanceObservation` working as today. Thesis Builder lists packets as read-only cards with relationship editors.
+Extend `ThesisDraft` with `analysisPackets: EvidencePacket[]`. Keep the existing single `performanceObservation` / `performanceEvidence` path unchanged so Sprint 1–3 behaviour is preserved. Thesis Builder lists packets as cards with relationship editors.
 
 Do not auto-write judgments into Decision Journal stance. Decision remains a separate, later act.
+
+Each packet must store `sourceProvider` from the API response at save time (fixture vs live). Summary and thesis cards display that badge. There is no source toggle inside guided analysis.
 
 ---
 
@@ -442,15 +469,15 @@ Do not auto-write judgments into Decision Journal stance. Decision remains a sep
 
 A single scrolling screen listing, for each stage:
 
-- Judgment status
+- Judgment status, plus **Review incomplete** when `Complete later` was chosen or post fields are missing
 - Bias check status (acknowledged / noted / skipped / not required)
 - Counter-evidence text or “not yet written”
 - Alternative explanation or “not yet written”
 - Missing information
 - Mind-changer
-- Confidence
+- Shared confidence (current value + “Revised” if history exists)
 
-Incomplete post-judgment items for **Record** judgments are listed first. The learner can jump back to that stage.
+Incomplete post-judgment items for **Record** judgments are listed first. The learner can jump back to that stage. Never present an incomplete Record as fully reviewed.
 
 The Review must not rank stages or compute a “bias tally.”
 
@@ -462,11 +489,12 @@ A structured, printable-in-spirit (scroll, copy text) composition:
 2. Circle of Competence (learner words + interpretation status)
 3. Evidence reviewed (five stages, fact snapshots only)
 4. Deterministic explanations (original wording)
-5. Learner judgments (record / defer / uncertain)
+5. Learner judgments (record / defer / uncertain), with revision indicator if edited
 6. Bias checks completed or skipped
-7. Counter-evidence and mind-changers
+7. Counter-evidence and mind-changers, or **Review incomplete**
 8. Open questions
-9. Packets saved to thesis (if any)
+9. Packets saved to thesis (if any), each showing saved `sourceProvider`
+10. Familiar comparisons are omitted from this evidence list (they may appear only in a separate, labelled teaching appendix if shown at all)
 
 Summary generation is **template assembly** from stored state. No LLM.
 
@@ -476,9 +504,7 @@ Marking the analysis complete requires:
 - All five stages visited
 - Each stage has judgment `record` | `defer` | `uncertain`
 - Every `record` has a pre-judgment bias-check value
-- Every `record` has post-judgment fields non-empty **or** the learner explicitly confirms “I am leaving post-judgment incomplete”
-
-The last confirmation exists so a learner can finish without pretending the review is done.
+- Every `record` either has post-judgment marked `completed` **or** the learner chose **Complete later** (incomplete items remain visible and are never labelled fully reviewed)
 
 ---
 
@@ -488,7 +514,7 @@ The last confirmation exists so a learner can finish without pretending the revi
 - Confirm / Correct / Skip and Record / Defer / Uncertain are real buttons with `aria-pressed` or radio semantics, not clickable cards without names.
 - Bias checks use a `fieldset` + `legend`.
 - Focus moves to the new heading when a screen changes.
-- Analogy disclosure is a button that expands; collapsed by default.
+- Familiar-comparison disclosure is a button that expands; collapsed by default; limitation text is part of the accessible name/description.
 - Contrast matches existing ink / accent / muted tokens.
 - Phone frame remains keyboard reachable; do not trap focus inside the device chrome.
 - Do not rely on hover.
@@ -512,16 +538,17 @@ The last confirmation exists so a learner can finish without pretending the revi
 
 ## 14. Test plan
 
-Frontend currently has typecheck / lint / build only. Sprint 4 should add **pure function tests** (Node/Vitest or a small Node assert script — choose the lightest fit at implementation; do not add Playwright as a gate unless already cheap).
+Frontend currently has typecheck / lint / build only. Sprint 4 adds **pure function tests** with Node’s built-in runner only: `node --test`. Do **not** add Vitest, Jest, Playwright, or any other test framework.
 
-### 14.1 Unit / function tests
+### 14.1 Unit / function tests (`node --test`)
 
-- CoC interpretation templates for empty, chips-only, note-only, skip.
+- CoC interpretation templates for empty, chips-only, note-only, chips + note, and skip.
 - Bias assignment table is complete for all five stages.
 - Storage: serialize → deserialize v1; reject unknown version without data loss; default missing fields.
 - Summary assembler includes all layers and **excludes** analogy text from thesis packets.
 - Record judgment blocked when bias check is `unseen`.
 - Defer / Uncertain allowed with empty notes.
+- Judgment or confidence edits preserve a revision indicator and history; they must not silently overwrite the earlier state.
 - No function returns Buy/Sell/Hold or a numeric “quality score.”
 
 ### 14.2 Manual / browser
@@ -529,9 +556,10 @@ Frontend currently has typecheck / lint / build only. Sprint 4 should add **pure
 - Start from Finance → Apple → guided analysis.
 - Complete one Record, one Defer, one Uncertain path.
 - Refresh the page; analysis restores.
-- Restart walkthrough → Keep vs Clear.
+- Restart walkthrough keeps Apple analysis; **Reset guided Apple analysis** clears it after confirm.
+- Exit guide → Thesis (or another rail step) → Finance resumes the exact guided screen left behind.
 - Save two packets to thesis; remove one; Harborline observation still works.
-- Keyboard-only pass of CoC → Stage 1 → Review → Summary.
+- Keyboard-only pass of CoC (chips + optional note) → Stage 1 → Review → Summary.
 - Narrow phone-frame scroll: actions remain reachable.
 - Fixture API unavailable: stages show existing Finance error banners; no invented numbers.
 
@@ -567,21 +595,23 @@ Run: `dotnet test` in `backend/`; `npm run typecheck && npm run lint && npm run 
 Sprint 4 may be called implemented when all of the following are true:
 
 1. Learner can start guided Apple analysis from Finance → Apple (SEC) inside the phone frame.
-2. CoC can be confirmed, corrected, or skipped; skip still allows continuation.
+2. CoC capture is chips **plus** optional note (not free-text-only). CoC can be confirmed, corrected, or skipped; skip still allows continuation.
 3. Bias introduction is shown once before Stage 1.
 4. All five stages use only existing Sprint 1–3 metrics/calculations/explanations.
-5. Analogies, if present, are collapsed by default and labelled as not Apple evidence.
+5. All five familiar comparisons ship, collapsed by default, labelled `Familiar comparison — not Apple evidence`, each with a limitation; they never enter facts, calculations, or thesis packets.
 6. Record requires a pre-judgment bias check value; Defer and Uncertain do not.
 7. The product never diagnoses the learner as biased.
-8. Post-judgment prompts exist for Record and appear on the Review screen.
+8. Post-judgment can be left incomplete via **Complete later**; Review and Summary mark those items incomplete.
 9. Learner can complete the analysis with every stage Deferred or Uncertain.
-10. Selected packets can be saved into the thesis loop without sending analogies.
+10. Selected packets can be saved into `analysisPackets[]` without replacing the Sprint 1–3 single observation.
 11. Bias and Counter-Evidence Review lists every stage without scoring the person.
-12. Apple Analysis Summary is assembled from stored layers with a disclaimer.
-13. Progress persists in `aic.appleGuidedAnalysis.v1` and survives refresh.
-14. No LLM, auth, database, new company, new metric, or deployment.
-15. Sprint 1–3 regression commands pass.
-16. Independent review of Sprint 4 is still out of scope for this planning document.
+12. Apple Analysis Summary is assembled from stored layers with a disclaimer; Summary and thesis cards show the packet’s saved `sourceProvider` badge.
+13. Progress persists in `aic.appleGuidedAnalysis.v1` and survives refresh. **Restart walkthrough** keeps it; **Reset guided Apple analysis** clears it after confirm.
+14. One shared confidence per material judgment. If judgment or confidence changes after reflection, keep a revision indicator and history; do not silently overwrite earlier judgment state.
+15. Guided mode hides the metric explorer and regular step rail; **Exit guide** restores Finance; returning to Finance resumes the **exact** guided screen left behind.
+16. Pure function tests use `node --test` only. Do not add Vitest or another test framework.
+17. No LLM, auth, database, new company, new metric, or deployment.
+18. Sprint 1–3 regression commands pass.
 
 ---
 
@@ -612,13 +642,14 @@ Do not create these until implementation is approved.
 | --- | --- |
 | `src/lib/types.ts` | Add analysis / packet types; optional `analysisPackets` on `ThesisDraft` |
 | `src/lib/apple-guided-analysis.ts` | Stage IDs, bias assignment, CoC templates, summary assembler |
+| `src/lib/*.test.ts` (or equivalent) | Pure-function tests run with `node --test` only |
 | `src/lib/apple-guided-storage.ts` | Versioned `localStorage` read/write/migrate |
 | `src/lib/bias-library.ts` | Closed bias copy |
 | `src/lib/guided-analogies.ts` | Optional analogy copy + “not evidence” labels |
 | `src/components/prototype/AppleGuidedAnalysis.tsx` | Flow controller inside Finance |
 | `src/components/prototype/guided/*` | CoC, bias intro, stage, review, summary screens |
 | `src/components/prototype/FinancialPerformance.tsx` | Entry CTA only; no metric logic rewrite |
-| `src/components/prototype/PrototypeApp.tsx` | Wire storage + keep/clear on restart |
+| `src/components/prototype/PrototypeApp.tsx` | Hide rail/explorer in guided mode; Exit guide; Restart keeps analysis; Reset action |
 | `src/components/prototype/ThesisBuilder.tsx` | Render saved packets |
 | `src/lib/apple-trend-copy.ts` | Reuse only; no new formulas |
 | `docs/sprint4/SPRINT4_IMPLEMENTATION_REPORT.md` | After build, not now |
@@ -628,33 +659,43 @@ Do not create these until implementation is approved.
 
 ## 19. Implementation sequence (when approved)
 
-1. Types + storage + templates (testable, no UI).
+1. Types + storage + templates, covered by `node --test` (no UI; no new test framework).
 2. Finance entry CTA + CoC + bias intro screens.
 3. One stage end-to-end (Revenue and growth) against live fixture API.
 4. Remaining four stages by configuration, not copied logic.
 5. Review + Summary.
 6. Thesis packet integration.
-7. Restart keep/clear + a11y pass.
+7. Guided chrome (hide rail/explorer), Exit guide resume, Restart-keeps / Reset-clears, a11y pass.
 8. Regression commands + implementation report.
 
 Do not start deployment or Sprint 5.
 
 ---
 
-## 20. Open implementation questions (product decisions)
+## 20. Product decisions
 
-These need a decision before or during the first implementation PR:
+### 20.1 Locked (2026-09-18)
 
-1. **Thesis packets:** Keep a single observation *and* add `analysisPackets[]` (recommended), or replace the single observation with a list?
-2. **Restart default:** Keep Apple analysis (recommended) or clear it with the Harborline walkthrough?
-3. **Analogies:** Ship the five draft metaphors, or ship Stage 4 with **no analogies** until copy is separately reviewed?
-4. **Rail crowding:** Is a compact progress strip under Finance enough, or should guided analysis temporarily hide Harborline metric chrome?
-5. **Post-judgment completeness:** Is the explicit “leave incomplete” confirmation acceptable, or must every Record fill all five post fields?
-6. **Confidence twice:** Stage judgment confidence vs post-judgment confidence — keep both, or one shared value?
-7. **Test runner:** Add Vitest for the new pure modules, or a `node --test` script to avoid new tooling?
-8. **Live vs fixture badge:** Summary should show whatever `sourceProvider` the API returned when the packet was saved (recommended), not a user toggle inside analysis.
-9. **CoC chips:** Are the suggested chips acceptable, or should v1 be free-text only?
-10. **Step-rail jumps:** If the learner opens Thesis mid-analysis, should returning to Finance resume the exact guided screen (recommended) or the Apple explorer home?
+All ten product decisions are locked.
+
+| # | Decision | Lock |
+| --- | --- | --- |
+| 1 | Thesis packets | Keep the existing single Finance observation **and** add `analysisPackets[]`. Preserve Sprint 1–3 behaviour. |
+| 2 | Restart default | **Restart walkthrough** keeps saved Apple guided analysis. Separate, labelled **Reset guided Apple analysis** with confirmation. |
+| 3 | Analogies | Ship all five drafts. Each labelled `Familiar comparison — not Apple evidence`, paired with a limitation, stored as deterministic editable content, and barred from SEC facts, calculations, packets, and thesis cards. |
+| 4 | Rail crowding | While the guide is open, hide the Harborline/Apple metric explorer **and** the regular step rail. Show a dedicated compact guided-analysis header. **Exit guide** returns to existing Finance. |
+| 5 | Post-judgment completeness | Incomplete is allowed. Learner must choose **Complete later**. Mark review incomplete, preserve fields, surface gaps on Review and Summary, never present as fully reviewed. |
+| 6 | Confidence | **One shared** confidence per material judgment, recorded or updated during post-judgment. If judgment or confidence changes, keep a revision indicator and history; do not silently overwrite. |
+| 7 | Test runner | Use `node --test` for Sprint 4 pure-function tests. Do **not** add Vitest or another test framework. |
+| 8 | Live vs fixture badge | Summary/thesis cards show the `sourceProvider` saved on the packet. No source toggle inside analysis. |
+| 9 | Circle of Competence | Suggested chips in §4.1 **plus** optional note / free-text. Do **not** use free-text-only. |
+| 10 | Step-rail jumps | After Exit guide → Thesis (or other rail steps) → Finance, resume the **exact** guided screen left behind. |
+
+Decision 6 was truncated in the product note (“retain a revision indicator/history rather…”). It is locked as: retain revision indicator **and** history rather than silently overwriting.
+
+### 20.2 Open decisions
+
+None. Every item in §20.1 is locked. There are no remaining product decisions to resolve before implementation.
 
 ---
 
@@ -662,10 +703,12 @@ These need a decision before or during the first implementation PR:
 
 | Question | Answer |
 | --- | --- |
-| May Sprint 4 implementation begin? | **Not yet** — wait for product decisions in §20 if they affect the first PR |
+| May Sprint 4 implementation begin? | **Yes, after this commit.** This planning commit is documentation-only and does not start implementation. |
+| All ten product decisions locked? | **Yes** — including test runner (`node --test`) and CoC (chips + optional note). See §20.1. No items remain in §20.2. |
 | Was Sprint 1–3 code changed in this planning step? | **No** |
 | Was Sprint 3 review preserved on `main`? | **Yes** — `fc7c59b` |
-| Next artefact after approval | Implementation starting at types/storage/templates, not a new API |
+| Sprint 4 plan on `main` | Prior plan commit `44b55de`; this file is the locked close-out |
+| Next artefact | Implementation starting at types/storage/templates + `node --test`, not a new API |
 
 ---
 

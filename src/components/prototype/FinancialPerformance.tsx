@@ -45,23 +45,33 @@ type ViewMode = "chart" | "table";
 type DatasetMode = "harborline" | "apple";
 
 interface FinancialPerformanceProps {
+  initialDataset?: DatasetMode;
   performanceObservation: string;
   onObservationChange: (value: string) => void;
   performanceEvidence: PerformanceObservationEvidence | null;
   onEvidenceChange: (value: PerformanceObservationEvidence | null) => void;
+  hasGuidedAnalysis: boolean;
+  guidedStorageIssue: string | null;
+  onStartGuidedAnalysis: () => void;
+  onResetGuidedAnalysis: () => void;
   onBack: () => void;
   onContinue: () => void;
 }
 
 export function FinancialPerformance({
+  initialDataset = "harborline",
   performanceObservation,
   onObservationChange,
   performanceEvidence,
   onEvidenceChange,
+  hasGuidedAnalysis,
+  guidedStorageIssue,
+  onStartGuidedAnalysis,
+  onResetGuidedAnalysis,
   onBack,
   onContinue,
 }: FinancialPerformanceProps) {
-  const [dataset, setDataset] = useState<DatasetMode>("harborline");
+  const [dataset, setDataset] = useState<DatasetMode>(initialDataset);
   const [appleMetric, setAppleMetric] = useState<AppleMetricId>("revenue");
   const [viewMode, setViewMode] = useState<ViewMode>("chart");
   const [draftObservation, setDraftObservation] = useState(
@@ -241,6 +251,10 @@ export function FinancialPerformance({
             onObservationChange={onObservationChange}
             onEvidenceChange={onEvidenceChange}
             removeObservation={removeObservation}
+            hasGuidedAnalysis={hasGuidedAnalysis}
+            guidedStorageIssue={guidedStorageIssue}
+            onStartGuidedAnalysis={onStartGuidedAnalysis}
+            onResetGuidedAnalysis={onResetGuidedAnalysis}
           />
         )}
       </div>
@@ -398,6 +412,10 @@ function ApplePanel({
   onObservationChange,
   onEvidenceChange,
   removeObservation,
+  hasGuidedAnalysis,
+  guidedStorageIssue,
+  onStartGuidedAnalysis,
+  onResetGuidedAnalysis,
 }: {
   loading: boolean;
   fetchError: string | null;
@@ -420,6 +438,10 @@ function ApplePanel({
   onObservationChange: (value: string) => void;
   onEvidenceChange: (value: PerformanceObservationEvidence | null) => void;
   removeObservation: () => void;
+  hasGuidedAnalysis: boolean;
+  guidedStorageIssue: string | null;
+  onStartGuidedAnalysis: () => void;
+  onResetGuidedAnalysis: () => void;
 }) {
   if (loading) {
     return (
@@ -547,6 +569,44 @@ function ApplePanel({
         {new Date(data.retrievedAtUtc).toLocaleString()} · Cache{" "}
         {data.cacheStatus}
       </p>
+
+      <section className="rounded-xl border border-accent/30 bg-accent/5 px-3 py-3">
+        <p className="text-xs font-medium text-ink">Guided Apple analysis</p>
+        {guidedStorageIssue ? (
+          <>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted">
+              {guidedStorageIssue}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm("Reset the unreadable saved Apple analysis?")) {
+                  onResetGuidedAnalysis();
+                }
+              }}
+              className="mt-2 text-[11px] font-medium text-accent-deep underline"
+            >
+              Reset saved analysis
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted">
+              Practise separating SEC facts, explanations, judgments, bias checks,
+              counter-evidence, and open questions.
+            </p>
+            <button
+              type="button"
+              onClick={onStartGuidedAnalysis}
+              className="mt-2 w-full rounded-xl bg-accent px-3 py-2 text-xs font-medium text-paper transition hover:bg-accent-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              {hasGuidedAnalysis
+                ? "Continue guided Apple analysis"
+                : "Start guided Apple analysis"}
+            </button>
+          </>
+        )}
+      </section>
 
       <AppleMetricSelector
         metric={appleMetric}
@@ -702,6 +762,11 @@ function AppleMetricSelector({
                   <button
                     key={option.id}
                     type="button"
+                    aria-label={
+                      option.derived
+                        ? `${option.label} (${option.nonGaap ? "derived, non-GAAP" : "derived"})`
+                        : option.label
+                    }
                     aria-pressed={metric === option.id}
                     onClick={() => onChange(option.id)}
                     className={`rounded-xl border px-3 py-2 text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${

@@ -1,3 +1,5 @@
+import type { AnalysisPacket } from "./guided-analysis";
+
 export type PrototypeStep =
   | "research"
   | "performance"
@@ -60,6 +62,8 @@ export interface ThesisDraft {
   performanceObservation: string;
   /** Structured source details for the performance observation. */
   performanceEvidence: PerformanceObservationEvidence | null;
+  /** Guided Apple analysis evidence, kept separate from the Sprint 1–3 observation. */
+  analysisPackets: AnalysisPacket[];
 }
 
 export interface DecisionEntry {

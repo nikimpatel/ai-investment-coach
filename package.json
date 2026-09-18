@@ -2,10 +2,14 @@
   "name": "ai-investment-coach",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "tsc -p tsconfig.test.json && node --test .test-dist/tests/guided-analysis.test.js",
     "lint": "eslint",
     "typecheck": "tsc --noEmit"
   },

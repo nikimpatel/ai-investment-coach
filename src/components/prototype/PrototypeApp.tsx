@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   laterObservation,
   sampleCompany,
@@ -14,8 +14,19 @@ import type {
   ResearchAnswers,
   ThesisDraft,
 } from "@/lib/types";
+import {
+  createGuidedAnalysis,
+  type AnalysisPacket,
+  type AppleGuidedAnalysisV1,
+} from "@/lib/guided-analysis";
+import {
+  loadGuidedAnalysis,
+  resetGuidedAnalysis,
+  saveGuidedAnalysis,
+} from "@/lib/guided-analysis-storage";
 import { DecisionJournal } from "./DecisionJournal";
 import { FinancialPerformance } from "./FinancialPerformance";
+import { GuidedAppleAnalysis } from "./GuidedAppleAnalysis";
 import { GuidedResearch } from "./GuidedResearch";
 import { PhoneFrame } from "./PhoneFrame";
 import { ReflectionPlaybook } from "./ReflectionPlaybook";
@@ -72,9 +83,78 @@ export function PrototypeApp({
   showChrome = true,
 }: PrototypeAppProps) {
   const [state, setState] = useState<PrototypeState>(createInitialState);
+  const [guidedAnalysis, setGuidedAnalysis] =
+    useState<AppleGuidedAnalysisV1 | null>(null);
+  const [guidedOpen, setGuidedOpen] = useState(false);
+  const [guidedStorageIssue, setGuidedStorageIssue] = useState<string | null>(
+    null,
+  );
 
-  const go = (step: PrototypeStep) =>
+  useEffect(() => {
+    const result = loadGuidedAnalysis(window.localStorage);
+    window.queueMicrotask(() => {
+      if (result.status === "ok") {
+        setGuidedAnalysis(result.value);
+      } else if (result.status === "newer-version") {
+        setGuidedStorageIssue(
+          "Saved Apple analysis is from a newer version. It was left unchanged.",
+        );
+      } else if (result.status === "invalid") {
+        setGuidedStorageIssue(
+          "Saved Apple analysis could not be read. It was left unchanged.",
+        );
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!guidedAnalysis) return;
+    const timer = window.setTimeout(() => {
+      saveGuidedAnalysis(window.localStorage, guidedAnalysis);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [guidedAnalysis]);
+
+  const go = (step: PrototypeStep) => {
+    if (step === "performance" && guidedAnalysis) {
+      setGuidedOpen(true);
+    }
     setState((prev) => ({ ...prev, step }));
+  };
+
+  const startGuidedAnalysis = () => {
+    if (guidedStorageIssue) return;
+    if (!guidedAnalysis) {
+      const created = createGuidedAnalysis(
+        new Date().toISOString(),
+        crypto.randomUUID(),
+      );
+      setGuidedAnalysis(created);
+    }
+    setGuidedOpen(true);
+  };
+
+  const clearGuidedAnalysis = () => {
+    resetGuidedAnalysis(window.localStorage);
+    setGuidedAnalysis(null);
+    setGuidedStorageIssue(null);
+    setGuidedOpen(false);
+  };
+
+  const saveAnalysisPacket = (packet: AnalysisPacket) => {
+    setState((previous) => {
+      const packets = previous.thesis.analysisPackets.filter(
+        (candidate) => candidate.id !== packet.id,
+      );
+      return {
+        ...previous,
+        thesis: {
+          ...previous.thesis,
+          analysisPackets: [...packets, packet],
+        },
+      };
+    });
+  };
 
   let content: React.ReactNode;
 
@@ -104,8 +184,19 @@ export function PrototypeApp({
       );
       break;
     case "performance":
-      content = (
+      content =
+        guidedOpen && guidedAnalysis ? (
+          <GuidedAppleAnalysis
+            analysis={guidedAnalysis}
+            onChange={setGuidedAnalysis}
+            onExit={() => setGuidedOpen(false)}
+            onReset={clearGuidedAnalysis}
+            onSavePacket={saveAnalysisPacket}
+            savedPacketIds={state.thesis.analysisPackets.map((packet) => packet.id)}
+          />
+        ) : (
         <FinancialPerformance
+          initialDataset={guidedAnalysis ? "apple" : "harborline"}
           performanceObservation={state.thesis.performanceObservation}
           onObservationChange={(performanceObservation) =>
             setState((prev) => ({
@@ -120,6 +211,10 @@ export function PrototypeApp({
               thesis: { ...prev.thesis, performanceEvidence },
             }))
           }
+          hasGuidedAnalysis={guidedAnalysis !== null}
+          guidedStorageIssue={guidedStorageIssue}
+          onStartGuidedAnalysis={startGuidedAnalysis}
+          onResetGuidedAnalysis={clearGuidedAnalysis}
           onBack={() => go("research")}
           onContinue={() => go("thesis")}
         />
@@ -173,7 +268,10 @@ export function PrototypeApp({
             setState((prev) => ({ ...prev, lessonNote }))
           }
           onBack={() => go("decision")}
-          onRestart={() => setState(createInitialState())}
+          onRestart={() => {
+            setState(createInitialState());
+            setGuidedOpen(false);
+          }}
         />
       );
       break;
@@ -181,12 +279,12 @@ export function PrototypeApp({
 
   const body = (
     <>
-      <StepRail
-        current={state.step}
-        onSelect={(step) => {
-          setState((prev) => ({ ...prev, step }));
-        }}
-      />
+      {!guidedOpen && (
+        <StepRail
+          current={state.step}
+          onSelect={go}
+        />
+      )}
       <div className="min-h-0 flex-1">{content}</div>
     </>
   );
