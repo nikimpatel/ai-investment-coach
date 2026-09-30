@@ -292,13 +292,15 @@ export function PrototypeApp({
   const body = (
     <>
       {!guidedOpen && (
-        <div className="flex flex-col gap-3 border-b border-line px-3 pb-3 sm:flex-row sm:items-start">
-          <div className="min-w-0 sm:w-72 sm:shrink-0">
-            <StepRail current={state.step} onSelect={go} />
+        <div className="@container">
+          <div className="flex flex-col gap-3 border-b border-line px-3 pb-3 @md:flex-row @md:items-start">
+            <div className="min-w-0 @md:w-72 @md:shrink-0">
+              <StepRail current={state.step} onSelect={go} />
+            </div>
+            <p className="min-w-0 border-l-2 border-sand/80 pl-3 text-xs leading-relaxed text-muted @md:pt-1">
+              {stepCoachCopy[state.step]}
+            </p>
           </div>
-          <p className="min-w-0 border-l-2 border-sand/80 pl-3 text-xs leading-relaxed text-muted sm:pt-1">
-            {stepCoachCopy[state.step]}
-          </p>
         </div>
       )}
       <div className="min-h-0 flex-1">{content}</div>
