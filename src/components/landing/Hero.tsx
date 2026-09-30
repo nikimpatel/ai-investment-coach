@@ -31,16 +31,20 @@ export function Hero() {
             personal investing playbook that improves with you.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <CtaButton kind="early-access">Join the early-access group</CtaButton>
-            <CtaButton kind="interview" variant="secondary">
-              Help shape the product
+            <a
+              href="#prototype"
+              className="inline-flex items-center justify-center rounded-xl bg-accent px-5 py-3 text-sm font-medium text-paper transition hover:bg-accent-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              Try the walkthrough
+            </a>
+            <CtaButton kind="early-access" variant="secondary">
+              Join early access
             </CtaButton>
           </div>
           <p className="mt-6 max-w-md text-xs leading-relaxed text-muted">
-            <a href="#prototype" className="font-medium text-accent-deep underline-offset-4 hover:underline">
-              Try the interactive prototype
-            </a>{" "}
-            — a fictional company walkthrough in your browser.
+            <CtaButton kind="interview" variant="ghost" className="!px-0 !py-0">
+              Help shape the product
+            </CtaButton>
           </p>
         </div>
 

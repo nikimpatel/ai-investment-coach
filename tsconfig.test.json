@@ -19,6 +19,7 @@
     "src/lib/guided-analogies.ts",
     "src/lib/guided-analysis.ts",
     "src/lib/guided-analysis-storage.ts",
+    "src/lib/prototype-briefing-storage.ts",
     "tests/**/*.test.ts"
   ]
 }

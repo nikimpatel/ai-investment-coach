@@ -33,6 +33,15 @@ import { ReflectionPlaybook } from "./ReflectionPlaybook";
 import { StepRail } from "./StepRail";
 import { ThesisBuilder } from "./ThesisBuilder";
 
+const stepCoachCopy: Record<PrototypeStep, string> = {
+  research: "Why does this idea interest you? Don't pick a stock yet.",
+  performance: "Look at ten years of numbers before you write a story.",
+  thesis: "Write down what would prove you wrong.",
+  decision: "Record your stance and what would make you reconsider.",
+  reflection:
+    "This is the product: a playbook of your habits, not a return score.",
+};
+
 const initialResearch: ResearchAnswers = {
   attraction: "recent-news",
   attractionNote: sampleCompany.seedAttraction,
@@ -76,11 +85,14 @@ function createInitialState(): PrototypeState {
 interface PrototypeAppProps {
   className?: string;
   showChrome?: boolean;
+  /** Overrides showChrome. "desktop" draws the bezel only at lg and keeps this instance mounted. */
+  chrome?: "always" | "desktop" | "never";
 }
 
 export function PrototypeApp({
   className = "",
   showChrome = true,
+  chrome,
 }: PrototypeAppProps) {
   const [state, setState] = useState<PrototypeState>(createInitialState);
   const [guidedAnalysis, setGuidedAnalysis] =
@@ -280,22 +292,28 @@ export function PrototypeApp({
   const body = (
     <>
       {!guidedOpen && (
-        <StepRail
-          current={state.step}
-          onSelect={go}
-        />
+        <div className="@container">
+          <div className="flex flex-col gap-3 border-b border-line px-3 pb-3 @md:flex-row @md:items-start">
+            <div className="min-w-0 @md:w-72 @md:shrink-0">
+              <StepRail current={state.step} onSelect={go} />
+            </div>
+            <p className="min-w-0 border-l-2 border-sand/80 pl-3 text-xs leading-relaxed text-muted @md:pt-1">
+              {stepCoachCopy[state.step]}
+            </p>
+          </div>
+        </div>
       )}
       <div className="min-h-0 flex-1">{content}</div>
     </>
   );
 
-  if (!showChrome) {
-    return (
-      <div className={`flex h-full flex-col bg-paper ${className}`}>{body}</div>
-    );
-  }
+  const frameChrome = chrome ?? (showChrome ? "always" : "never");
 
-  return <PhoneFrame className={className}>{body}</PhoneFrame>;
+  return (
+    <PhoneFrame className={className} chrome={frameChrome}>
+      {body}
+    </PhoneFrame>
+  );
 }
 
 function hydrateThesis(
