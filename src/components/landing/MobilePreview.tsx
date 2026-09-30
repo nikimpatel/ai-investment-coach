@@ -3,8 +3,8 @@ import { PrototypeExperience } from "@/components/landing/PrototypeExperience";
 export function MobilePreview() {
   return (
     <section id="prototype" className="scroll-mt-6 border-t border-line bg-ink text-paper">
-      <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-[0.9fr_1.1fr]">
-        <div>
+      <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-20">
+        <div className="max-w-2xl">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-sand">
             Interactive prototype
           </p>
@@ -24,7 +24,7 @@ export function MobilePreview() {
             <li>5. Reflection</li>
           </ol>
         </div>
-        <div className="flex justify-center lg:justify-end">
+        <div className="mt-10 min-w-0">
           <PrototypeExperience />
         </div>
       </div>

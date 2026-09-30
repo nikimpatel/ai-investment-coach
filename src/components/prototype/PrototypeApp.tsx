@@ -76,11 +76,14 @@ function createInitialState(): PrototypeState {
 interface PrototypeAppProps {
   className?: string;
   showChrome?: boolean;
+  /** Overrides showChrome. "desktop" draws the bezel only at lg and keeps this instance mounted. */
+  chrome?: "always" | "desktop" | "never";
 }
 
 export function PrototypeApp({
   className = "",
   showChrome = true,
+  chrome,
 }: PrototypeAppProps) {
   const [state, setState] = useState<PrototypeState>(createInitialState);
   const [guidedAnalysis, setGuidedAnalysis] =
@@ -289,13 +292,13 @@ export function PrototypeApp({
     </>
   );
 
-  if (!showChrome) {
-    return (
-      <div className={`flex h-full flex-col bg-paper ${className}`}>{body}</div>
-    );
-  }
+  const frameChrome = chrome ?? (showChrome ? "always" : "never");
 
-  return <PhoneFrame className={className}>{body}</PhoneFrame>;
+  return (
+    <PhoneFrame className={className} chrome={frameChrome}>
+      {body}
+    </PhoneFrame>
+  );
 }
 
 function hydrateThesis(

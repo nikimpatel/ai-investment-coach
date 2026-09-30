@@ -18,6 +18,7 @@ function browserStorage(): BriefingStorage | null {
 
 export function PrototypeExperience() {
   const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [phonePreview, setPhonePreview] = useState(false);
   const walkthroughRef = useRef<HTMLDivElement>(null);
   const shouldFocusWalkthrough = useRef(false);
 
@@ -50,18 +51,37 @@ export function PrototypeExperience() {
   };
 
   if (!showWalkthrough) {
-    return <PrototypeBriefing onDismiss={revealWalkthrough} />;
+    return (
+      <div className="flex justify-center">
+        <PrototypeBriefing onDismiss={revealWalkthrough} />
+      </div>
+    );
   }
 
   return (
-    <div
-      ref={walkthroughRef}
-      id="prototype-walkthrough"
-      tabIndex={-1}
-      aria-label="Interactive walkthrough"
-      className="rounded-[2.2rem] bg-paper/5 p-3 ring-1 ring-paper/10 outline-none focus:[outline-style:solid] focus:outline-2 focus:outline-offset-4 focus:outline-sand"
-    >
-      <PrototypeApp />
+    <div className="min-w-0">
+      <div className="mb-4 hidden justify-end lg:flex">
+        <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-paper/80">
+          <input
+            type="checkbox"
+            checked={phonePreview}
+            onChange={(event) => setPhonePreview(event.target.checked)}
+            className="size-4 accent-accent"
+          />
+          Show phone preview
+        </label>
+      </div>
+      <div
+        ref={walkthroughRef}
+        id="prototype-walkthrough"
+        tabIndex={-1}
+        aria-label="Interactive walkthrough"
+        className={`rounded-[2.2rem] bg-paper/5 p-2 ring-1 ring-paper/10 outline-none focus:[outline-style:solid] focus:outline-2 focus:outline-offset-4 focus:outline-sand sm:p-3 ${
+          phonePreview ? "w-full lg:ml-auto lg:max-w-[392px]" : "w-full min-w-0"
+        }`}
+      >
+        <PrototypeApp chrome={phonePreview ? "desktop" : "never"} />
+      </div>
     </div>
   );
 }

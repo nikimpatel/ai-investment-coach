@@ -27,7 +27,7 @@ export function StepRail({ current, onSelect }: StepRailProps) {
               <button
                 type="button"
                 onClick={() => onSelect?.(step.id)}
-                className={`flex w-full flex-col items-center gap-1 rounded-lg px-0.5 py-1.5 text-[10px] font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                className={`flex w-full flex-col items-center gap-1 rounded-lg px-0.5 py-1.5 text-[10px] font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:text-xs ${
                   active
                     ? "bg-accent/10 text-accent-deep"
                     : done
