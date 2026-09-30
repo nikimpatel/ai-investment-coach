@@ -1,0 +1,13 @@
+{
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "api",
+      "command": "cd backend && SEC__UseFixtureData=true ASPNETCORE_ENVIRONMENT=Development dotnet run --project src/TenYearExplorer.Api"
+    },
+    {
+      "name": "web",
+      "command": "npm run dev"
+    }
+  ]
+}
