@@ -33,6 +33,15 @@ import { ReflectionPlaybook } from "./ReflectionPlaybook";
 import { StepRail } from "./StepRail";
 import { ThesisBuilder } from "./ThesisBuilder";
 
+const stepCoachCopy: Record<PrototypeStep, string> = {
+  research: "Why does this idea interest you? Don't pick a stock yet.",
+  performance: "Look at ten years of numbers before you write a story.",
+  thesis: "Write down what would prove you wrong.",
+  decision: "Record your stance and what would make you reconsider.",
+  reflection:
+    "This is the product: a playbook of your habits, not a return score.",
+};
+
 const initialResearch: ResearchAnswers = {
   attraction: "recent-news",
   attractionNote: sampleCompany.seedAttraction,
@@ -283,10 +292,14 @@ export function PrototypeApp({
   const body = (
     <>
       {!guidedOpen && (
-        <StepRail
-          current={state.step}
-          onSelect={go}
-        />
+        <div className="flex flex-col gap-3 border-b border-line px-3 pb-3 sm:flex-row sm:items-start">
+          <div className="min-w-0 sm:w-72 sm:shrink-0">
+            <StepRail current={state.step} onSelect={go} />
+          </div>
+          <p className="min-w-0 border-l-2 border-sand/80 pl-3 text-xs leading-relaxed text-muted sm:pt-1">
+            {stepCoachCopy[state.step]}
+          </p>
+        </div>
       )}
       <div className="min-h-0 flex-1">{content}</div>
     </>

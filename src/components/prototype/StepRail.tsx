@@ -17,7 +17,7 @@ export function StepRail({ current, onSelect }: StepRailProps) {
   const currentIndex = steps.findIndex((step) => step.id === current);
 
   return (
-    <nav aria-label="Prototype steps" className="border-b border-line px-3 pb-3">
+    <nav aria-label="Prototype steps" className="min-w-0">
       <ol className="grid grid-cols-5 gap-1">
         {steps.map((step, index) => {
           const active = step.id === current;
