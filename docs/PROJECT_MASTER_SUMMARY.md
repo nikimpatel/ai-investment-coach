@@ -366,7 +366,7 @@ Reported combined browser verification:
 
 Evidence locations:
 - `docs/sprint5/ONBOARDING_REPORT.md`.
-- Six `docs/deployment/evidence/slice4-*.png` files; exact basenames should be read from the repository.
+- Six screenshots: `slice4-briefing-1440.png`, `slice4-briefing-390.png`, `slice4-finance-1440.png`, `slice4-finance-390.png`, `slice4-desktop-phone-preview.png`, and `slice4-apple-guide-hidden-rail.png`, all under `docs/deployment/evidence/`.
 - `docs/deployment/PUBLIC_DEMO_DEPLOYMENT_REPORT.md`.
 - `docs/sprint4/SPRINT4_IMPLEMENTATION_REPORT.md`.
 
