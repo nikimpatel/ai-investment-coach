@@ -28,6 +28,7 @@ import { DecisionJournal } from "./DecisionJournal";
 import { FinancialPerformance } from "./FinancialPerformance";
 import { GuidedAppleAnalysis } from "./GuidedAppleAnalysis";
 import { GuidedResearch } from "./GuidedResearch";
+import { CoachQuestionCheck } from "./CoachQuestionCheck";
 import { PhoneFrame } from "./PhoneFrame";
 import { ReflectionPlaybook } from "./ReflectionPlaybook";
 import { StepRail } from "./StepRail";
@@ -297,9 +298,12 @@ export function PrototypeApp({
             <div className="min-w-0 @md:w-72 @md:shrink-0">
               <StepRail current={state.step} onSelect={go} />
             </div>
-            <p className="min-w-0 border-l-2 border-sand/80 pl-3 text-xs leading-relaxed text-muted @md:pt-1">
-              {stepCoachCopy[state.step]}
-            </p>
+            <div className="min-w-0 flex-1 space-y-3 border-l-2 border-sand/80 pl-3 @md:pt-1">
+              <p className="text-xs leading-relaxed text-muted">
+                {stepCoachCopy[state.step]}
+              </p>
+              <CoachQuestionCheck />
+            </div>
           </div>
         </div>
       )}

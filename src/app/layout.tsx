@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Figtree, Geist_Mono, Source_Serif_4 } from "next/font/google";
+import { Footer } from "@/components/landing/Footer";
 import { siteConfig } from "@/lib/config";
 import "./globals.css";
 
@@ -34,7 +35,10 @@ export default function RootLayout({
       lang="en-AU"
       className={`${figtree.variable} ${sourceSerif.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="flex min-h-full flex-col font-sans">
+        {children}
+        <Footer />
+      </body>
     </html>
   );
 }
