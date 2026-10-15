@@ -1,3 +1,4 @@
+import { SUMMARY_DISCLAIMER } from "./compliance-copy";
 import type { AppleFinancialHistoryResponse } from "./apple-financial-api";
 import type { AppleMetricId } from "./apple-metrics";
 import type { BiasId } from "./bias-library";
@@ -484,8 +485,7 @@ export function assembleAppleAnalysisSummary(
   analysis: AppleGuidedAnalysisV1,
 ): AppleAnalysisSummary {
   return {
-    disclaimer:
-      "Educational decision-support only. This summary is not personal financial advice or an investment recommendation.",
+    disclaimer: SUMMARY_DISCLAIMER,
     circleOfCompetence: {
       interpretation: analysis.circleOfCompetence.interpretation,
       status: analysis.circleOfCompetence.status,

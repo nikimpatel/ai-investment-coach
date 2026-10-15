@@ -1,14 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { PrototypeApp } from "@/components/prototype/PrototypeApp";
+import { DISCLAIMER_PATH, EDUCATIONAL_DISCLAIMER } from "@/lib/compliance-copy";
+import {
+  readEducationalAcknowledgement,
+  writeEducationalAcknowledgement,
+  type AcknowledgementStorage,
+} from "@/lib/educational-acknowledgement-storage";
 import {
   readBriefingDismissed,
   writeBriefingDismissed,
   type BriefingStorage,
 } from "@/lib/prototype-briefing-storage";
 
-function browserStorage(): BriefingStorage | null {
+function browserStorage(): (BriefingStorage & AcknowledgementStorage) | null {
   try {
     return window.localStorage;
   } catch {
@@ -16,26 +23,42 @@ function browserStorage(): BriefingStorage | null {
   }
 }
 
+type ExperiencePhase = "acknowledgement" | "briefing" | "walkthrough";
+
 export function PrototypeExperience() {
-  const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [phase, setPhase] = useState<ExperiencePhase>("acknowledgement");
   const [phonePreview, setPhonePreview] = useState(false);
+  const [acceptedChecked, setAcceptedChecked] = useState(false);
   const walkthroughRef = useRef<HTMLDivElement>(null);
   const shouldFocusWalkthrough = useRef(false);
 
   useLayoutEffect(() => {
     const storage = browserStorage();
-    if (storage && readBriefingDismissed(storage)) {
-      // Read after mount, then swap before paint. The server render stays on the briefing.
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from localStorage
-      setShowWalkthrough(true);
-    }
+    const accepted = Boolean(storage && readEducationalAcknowledgement(storage));
+    if (!accepted) return;
+    // Read after mount, then swap before paint. The server render stays on the acknowledgement.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from localStorage
+    setPhase(storage && readBriefingDismissed(storage) ? "walkthrough" : "briefing");
   }, []);
 
   useEffect(() => {
-    if (!showWalkthrough || !shouldFocusWalkthrough.current) return;
+    if (phase !== "walkthrough" || !shouldFocusWalkthrough.current) return;
     shouldFocusWalkthrough.current = false;
     walkthroughRef.current?.focus();
-  }, [showWalkthrough]);
+  }, [phase]);
+
+  const acceptEducationalNotice = () => {
+    if (!acceptedChecked) return;
+    const storage = browserStorage();
+    if (storage) {
+      try {
+        writeEducationalAcknowledgement(storage);
+      } catch {
+        // Still continue for this visit. The next load asks again.
+      }
+    }
+    setPhase("briefing");
+  };
 
   const revealWalkthrough = () => {
     const storage = browserStorage();
@@ -47,10 +70,22 @@ export function PrototypeExperience() {
       }
     }
     shouldFocusWalkthrough.current = true;
-    setShowWalkthrough(true);
+    setPhase("walkthrough");
   };
 
-  if (!showWalkthrough) {
+  if (phase === "acknowledgement") {
+    return (
+      <div className="flex justify-center">
+        <EducationalAcknowledgement
+          accepted={acceptedChecked}
+          onAcceptedChange={setAcceptedChecked}
+          onContinue={acceptEducationalNotice}
+        />
+      </div>
+    );
+  }
+
+  if (phase === "briefing") {
     return (
       <div className="flex justify-center">
         <PrototypeBriefing onDismiss={revealWalkthrough} />
@@ -86,6 +121,53 @@ export function PrototypeExperience() {
   );
 }
 
+function EducationalAcknowledgement({
+  accepted,
+  onAcceptedChange,
+  onContinue,
+}: {
+  accepted: boolean;
+  onAcceptedChange: (accepted: boolean) => void;
+  onContinue: () => void;
+}) {
+  return (
+    <div className="w-full max-w-lg rounded-[1.5rem] bg-paper p-5 text-ink shadow-phone sm:p-6">
+      <h3 className="font-display text-2xl tracking-tight">Before you use the coach</h3>
+      <p className="mt-3 text-sm leading-relaxed text-muted">{EDUCATIONAL_DISCLAIMER}</p>
+      <p className="mt-3 text-sm leading-relaxed text-muted">
+        Harborline Logistics is fictional, and Apple’s historical figures are
+        illustrative examples only. The coach will not give a buy, sell, or hold
+        call, a price target, or a personalised recommendation.
+      </p>
+      <p className="mt-3 text-sm">
+        <Link
+          href={DISCLAIMER_PATH}
+          className="font-medium text-accent-deep underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          Read the disclaimer
+        </Link>
+      </p>
+      <label className="mt-6 flex items-start gap-2 text-sm text-ink">
+        <input
+          type="checkbox"
+          checked={accepted}
+          onChange={(event) => onAcceptedChange(event.target.checked)}
+          className="mt-0.5 size-4 accent-accent"
+        />
+        I understand this is educational and not personal financial advice.
+      </label>
+      <button
+        type="button"
+        disabled={!accepted}
+        onClick={onContinue}
+        className="mt-6 inline-flex items-center justify-center rounded-xl bg-accent px-5 py-3 text-sm font-medium text-paper transition enabled:hover:bg-accent-deep disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        Continue
+      </button>
+    </div>
+  );
+}
+
 function PrototypeBriefing({ onDismiss }: { onDismiss: () => void }) {
   return (
     <div className="w-full max-w-lg rounded-[1.5rem] bg-paper p-5 text-ink shadow-phone sm:p-6">
@@ -114,8 +196,8 @@ function PrototypeBriefing({ onDismiss }: { onDismiss: () => void }) {
       <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-relaxed text-muted">
         <li>No login is required</li>
         <li>Nothing is bought, sold or traded</li>
-        <li>Harborline Logistics is fictional</li>
-        <li>Apple figures are historical SEC data provided for education only</li>
+        <li>Harborline Logistics is a fictional illustrative example only</li>
+        <li>Apple figures are historical SEC data, shown as an illustrative example only</li>
       </ul>
 
       <div className="mt-6 flex flex-col items-start gap-3">

@@ -53,7 +53,7 @@ export function DecisionJournal({
           Record what you decided — and why
         </h3>
         <p className="mt-1 text-xs leading-relaxed text-muted">
-          Use neutral language. This is your journal, not a buy/sell/hold tip.
+          Use neutral language. This journal records your own stance. The coach will not tell you to buy, sell, or hold.
         </p>
       </header>
 

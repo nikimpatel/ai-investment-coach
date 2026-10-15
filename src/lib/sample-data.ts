@@ -4,9 +4,10 @@ import type { ThesisDraft } from "./types";
 export const sampleCompany = {
   name: "Harborline Logistics",
   ticker: "HLG",
-  tagline: "Fictional ASX-style mid-cap · warehouse software & regional freight",
+  tagline:
+    "Illustrative example only · fictional ASX-style mid-cap · warehouse software & regional freight",
   summary:
-    "A made-up company used only for this walkthrough. Imagine an Australian logistics software firm expanding into warehouse automation for regional retailers.",
+    "Illustrative example only. Harborline Logistics is fictional and is not a security you can buy. Imagine an Australian logistics software firm expanding into warehouse automation for regional retailers.",
   seedAttraction:
     "A podcast mentioned rising e-commerce fulfilment in regional Australia, and Harborline sounded like a clean way to get exposure.",
 } as const;

@@ -180,8 +180,9 @@ export function FinancialPerformance({
             : "Apple Inc."}
         </h3>
         <p className="mt-1 text-xs leading-relaxed text-muted">
-          Ten years of financial performance to interpret — not a buy, sell, or
-          hold signal.
+          {dataset === "harborline"
+            ? "Illustrative example only. Harborline Logistics is fictional. These invented figures are for practice — not a buy, sell, or hold signal."
+            : "Illustrative historical example only. Apple’s past SEC figures are for education — not a buy, sell, or hold signal, a price target, or a view on Apple."}
         </p>
 
         <div
@@ -328,9 +329,9 @@ function HarborlinePanel({
         <div className="flex items-start gap-2">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-deep" />
           <p className="text-[11px] leading-relaxed text-ink/80">
-            Example data only. Figures are invented for Harborline Logistics to
-            practice reading a decade of performance — they are not filings,
-            market data, or investment advice.
+            Illustrative example only. Figures are invented for the fictional
+            Harborline Logistics company so you can practise reading a decade of
+            performance. They are not filings, market data, or investment advice.
           </p>
         </div>
       </aside>
@@ -568,6 +569,10 @@ function ApplePanel({
         Source: {data.sourceProvider} · Retrieved{" "}
         {new Date(data.retrievedAtUtc).toLocaleString()} · Cache{" "}
         {data.cacheStatus}
+      </p>
+      <p className="text-[11px] leading-relaxed text-muted">
+        Illustrative historical example only. These Apple figures are past SEC
+        data for education, not a recommendation or a price target.
       </p>
 
       <section className="rounded-xl border border-accent/30 bg-accent/5 px-3 py-3">

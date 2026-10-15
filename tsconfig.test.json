@@ -20,6 +20,8 @@
     "src/lib/guided-analysis.ts",
     "src/lib/guided-analysis-storage.ts",
     "src/lib/prototype-briefing-storage.ts",
+    "src/lib/compliance-copy.ts",
+    "src/lib/advice-guardrail.ts",
     "tests/**/*.test.ts"
   ]
 }

@@ -1,7 +1,6 @@
 import { CoachingConcept } from "@/components/landing/CoachingConcept";
 import { CtaSection } from "@/components/landing/CtaSection";
 import { Disclaimer } from "@/components/landing/Disclaimer";
-import { Footer } from "@/components/landing/Footer";
 import { Header } from "@/components/landing/Header";
 import { Hero } from "@/components/landing/Hero";
 import { HowItWorks } from "@/components/landing/HowItWorks";
@@ -12,7 +11,7 @@ import { Problem } from "@/components/landing/Problem";
 
 export default function Home() {
   return (
-    <div id="top" className="flex min-h-full flex-col">
+    <div id="top" className="flex w-full flex-1 flex-col">
       <Header />
       <main>
         <Hero />
@@ -25,7 +24,6 @@ export default function Home() {
         <Disclaimer />
         <CtaSection />
       </main>
-      <Footer />
     </div>
   );
 }
