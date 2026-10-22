@@ -76,3 +76,16 @@ test("an unrecognised provider is shown as reported instead of guessed", () => {
     "Source not reported by the data service.",
   );
 });
+
+test("guided evidence date shows only the filing date, never the fixture request time", () => {
+  const provenance = appleProvenance({
+    sourceProvider: "SEC EDGAR fixture",
+    retrievedAtUtc: "2026-10-22T03:25:25Z",
+    filingDates: ["2025-10-31"],
+  });
+  assert.equal(
+    provenance.date,
+    "Latest filing in this data: Oct 31, 2025. The saved copy’s capture date is not recorded in the data.",
+  );
+  assert.doesNotMatch(provenance.date, /saved to this analysis|Oct 22, 2026/i);
+});

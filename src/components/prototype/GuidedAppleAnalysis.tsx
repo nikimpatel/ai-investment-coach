@@ -14,7 +14,6 @@ import {
 import { BIAS_CHECK_EXPLAINER, BIAS_LIBRARY } from "@/lib/bias-library";
 import {
   appleProvenance,
-  formatProvenanceDate,
   latestFilingDate,
 } from "@/lib/data-provenance";
 import {
@@ -1286,10 +1285,7 @@ function EvidenceProvenance({ snapshot }: { snapshot: StageEvidenceSnapshot }) {
       </div>
       <div>
         <dt className="inline font-medium text-ink/80">Date: </dt>
-        <dd className="inline">
-          {provenance.date} Saved to this analysis on{" "}
-          {formatProvenanceDate(snapshot.retrievedAtUtc)}.
-        </dd>
+        <dd className="inline">{provenance.date}</dd>
       </div>
     </dl>
   );

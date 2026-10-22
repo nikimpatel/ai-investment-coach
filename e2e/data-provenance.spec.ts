@@ -54,6 +54,9 @@ test("guided evidence keeps the source and filing date", async ({ page }) => {
 
   const provenance = page.getByTestId("data-provenance");
   await expect(provenance).toContainText("SEC EDGAR: Apple’s public annual filings (Form 10-K)");
-  await expect(provenance).toContainText("Latest filing in this data: Oct 31, 2025.");
-  await expect(provenance).toContainText(/Saved to this analysis on [A-Z][a-z]{2} \d{1,2}, \d{4}\./);
+  await expect(provenance).toContainText(
+    "Date: Latest filing in this data: Oct 31, 2025. The saved copy’s capture date is not recorded in the data.",
+  );
+  await expect(provenance).not.toContainText("Saved to this analysis");
+  await expect(provenance).not.toContainText("Oct 22, 2026");
 });
