@@ -45,8 +45,8 @@ test("fixture mode names SEC EDGAR, says it is a saved copy, and hides the reque
   assert.match(provenance.source, /SEC EDGAR/);
   assert.match(provenance.source, /public annual filings \(Form 10-K\)/);
   assert.match(provenance.source, /saved copy/);
-  assert.match(provenance.date, /Latest filing in this data: Oct 31, 2025\./);
-  assert.match(provenance.date, /capture date is not recorded/);
+  assert.equal(provenance.date, "Latest filing in this data: Oct 31, 2025.");
+  assert.doesNotMatch(provenance.date, /capture date|not recorded/i);
   assert.doesNotMatch(provenance.date, /Oct 22, 2026/);
 });
 
@@ -83,9 +83,6 @@ test("guided evidence date shows only the filing date, never the fixture request
     retrievedAtUtc: "2026-10-22T03:25:25Z",
     filingDates: ["2025-10-31"],
   });
-  assert.equal(
-    provenance.date,
-    "Latest filing in this data: Oct 31, 2025. The saved copy’s capture date is not recorded in the data.",
-  );
-  assert.doesNotMatch(provenance.date, /saved to this analysis|Oct 22, 2026/i);
+  assert.equal(provenance.date, "Latest filing in this data: Oct 31, 2025.");
+  assert.doesNotMatch(provenance.date, /saved to this analysis|Oct 22, 2026|capture date/i);
 });

@@ -63,7 +63,7 @@ export function appleProvenance({
     return {
       source:
         "SEC EDGAR: Apple’s public annual filings (Form 10-K), from a saved copy bundled with this app.",
-      date: `${latestText} The saved copy’s capture date is not recorded in the data.`,
+      date: latestText,
     };
   }
 
