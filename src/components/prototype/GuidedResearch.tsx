@@ -1,6 +1,11 @@
 "use client";
 
 import { sampleCompany } from "@/lib/sample-data";
+import {
+  RESEARCH_WIZARD_STEPS,
+  canAdvanceResearchStep,
+  requirementLabel,
+} from "@/lib/research-wizard";
 import type { AttractionDriver, ResearchAnswers, TimeHorizon } from "@/lib/types";
 
 interface GuidedResearchProps {
@@ -34,13 +39,9 @@ export function GuidedResearch({
   onStepChange,
   onContinue,
 }: GuidedResearchProps) {
-  const total = 5;
-  const canAdvance =
-    (researchStep === 0 && Boolean(answers.attraction)) ||
-    (researchStep === 1 && Boolean(answers.timeHorizon)) ||
-    (researchStep === 2 && answers.evidence.trim().length > 12) ||
-    (researchStep === 3 && answers.risks.trim().length > 12) ||
-    (researchStep === 4 && answers.uncertainties.trim().length > 12);
+  const total = RESEARCH_WIZARD_STEPS.length;
+  const currentStep = RESEARCH_WIZARD_STEPS[researchStep];
+  const canAdvance = canAdvanceResearchStep(researchStep, answers);
 
   return (
     <div className="flex h-full flex-col">
@@ -61,15 +62,21 @@ export function GuidedResearch({
           {sampleCompany.summary}
         </div>
 
-        <p className="mb-3 text-[11px] text-muted">
-          Question {researchStep + 1} of {total}
-        </p>
+        <div className="mb-3 flex items-center gap-2 text-[11px] text-muted">
+          <span>
+            Question {researchStep + 1} of {total}
+          </span>
+          {currentStep && (
+            <RequirementTag required={currentStep.required} testId="question-requirement" />
+          )}
+        </div>
 
         {researchStep === 0 && (
           <fieldset>
             <legend className="font-display text-lg text-ink">
               What first attracted you to this idea?
             </legend>
+            <WhyWeAsk text={RESEARCH_WIZARD_STEPS[0].whyWeAsk} />
             <div className="mt-3 space-y-2">
               {attractionOptions.map((option) => (
                 <label
@@ -93,7 +100,10 @@ export function GuidedResearch({
               ))}
             </div>
             <label className="mt-3 block text-xs text-muted">
-              Optional note
+              <span className="flex items-center gap-2">
+                Note
+                <RequirementTag required={false} testId="note-requirement" />
+              </span>
               <textarea
                 value={answers.attractionNote}
                 onChange={(event) =>
@@ -112,6 +122,7 @@ export function GuidedResearch({
             <legend className="font-display text-lg text-ink">
               What time horizon are you thinking in?
             </legend>
+            <WhyWeAsk text={RESEARCH_WIZARD_STEPS[1].whyWeAsk} />
             <p className="mt-2 text-xs text-muted">
               No right answer — just name the horizon you would actually hold for.
             </p>
@@ -139,6 +150,7 @@ export function GuidedResearch({
             <span className="font-display text-lg text-ink">
               What evidence supports the idea so far?
             </span>
+            <WhyWeAsk text={RESEARCH_WIZARD_STEPS[2].whyWeAsk} />
             <p className="mt-2 text-xs text-muted">
               Facts, filings, customer behaviour — not price movement alone.
             </p>
@@ -157,6 +169,7 @@ export function GuidedResearch({
             <span className="font-display text-lg text-ink">
               What risks could break the idea?
             </span>
+            <WhyWeAsk text={RESEARCH_WIZARD_STEPS[3].whyWeAsk} />
             <p className="mt-2 text-xs text-muted">
               Name risks even if you still like the opportunity.
             </p>
@@ -175,6 +188,7 @@ export function GuidedResearch({
             <span className="font-display text-lg text-ink">
               What are you still uncertain about?
             </span>
+            <WhyWeAsk text={RESEARCH_WIZARD_STEPS[4].whyWeAsk} />
             <p className="mt-2 text-xs text-muted">
               Honest gaps beat false confidence.
             </p>
@@ -221,5 +235,26 @@ export function GuidedResearch({
         )}
       </div>
     </div>
+  );
+}
+
+function WhyWeAsk({ text }: { text: string }) {
+  return (
+    <p data-testid="why-we-ask" className="mt-1.5 text-[11px] leading-relaxed text-muted">
+      <span className="font-medium text-ink/80">Why we ask:</span> {text}
+    </p>
+  );
+}
+
+function RequirementTag({ required, testId }: { required: boolean; testId: string }) {
+  return (
+    <span
+      data-testid={testId}
+      className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] ${
+        required ? "border-line text-ink/70" : "border-sand/80 bg-sand/30 text-ink/80"
+      }`}
+    >
+      {requirementLabel(required)}
+    </span>
   );
 }

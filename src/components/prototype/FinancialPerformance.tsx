@@ -36,16 +36,19 @@ import {
   financialKpiOptions,
   harborlineRevenueSeries,
 } from "@/lib/harborline-financials";
+import { DEMO_LABEL, type DatasetMode } from "@/lib/company-context";
+import { appleProvenance, demoProvenance } from "@/lib/data-provenance";
+import { BIAS_CHECK_EXPLAINER } from "@/lib/bias-library";
 import type {
   EvidenceRelationship,
   PerformanceObservationEvidence,
 } from "@/lib/types";
 
 type ViewMode = "chart" | "table";
-type DatasetMode = "harborline" | "apple";
 
 interface FinancialPerformanceProps {
   initialDataset?: DatasetMode;
+  onDatasetChange?: (dataset: DatasetMode) => void;
   performanceObservation: string;
   onObservationChange: (value: string) => void;
   performanceEvidence: PerformanceObservationEvidence | null;
@@ -60,6 +63,7 @@ interface FinancialPerformanceProps {
 
 export function FinancialPerformance({
   initialDataset = "harborline",
+  onDatasetChange,
   performanceObservation,
   onObservationChange,
   performanceEvidence,
@@ -152,6 +156,7 @@ export function FinancialPerformance({
 
   const switchDataset = (next: DatasetMode) => {
     setDataset(next);
+    onDatasetChange?.(next);
     setConfirmMessage(null);
     setViewMode("chart");
     setExpandedFilingYear(null);
@@ -192,7 +197,7 @@ export function FinancialPerformance({
         >
           {(
             [
-              { id: "harborline", label: "Harborline demo" },
+              { id: "harborline", label: `Harborline (${DEMO_LABEL})` },
               { id: "apple", label: "Apple (SEC)" },
             ] as const
           ).map((tab) => (
@@ -310,15 +315,19 @@ function HarborlinePanel({
 
   const summarySentences = buildSummarySentences(stats);
   const beginnerExplanation = buildBeginnerExplanation(stats);
+  const provenance = demoProvenance(series);
 
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-md border border-sand/80 bg-sand/30 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-ink/80">
-          Fictional demonstration data
+          {DEMO_LABEL} · fictional data
         </span>
-        <span className="text-[10px] text-muted">{series.sourceLabel}</span>
+        <span className="text-[10px] text-muted">
+          {series.companyName} · {series.ticker}
+        </span>
       </div>
+      <ProvenanceNote source={provenance.source} date={provenance.date} />
 
       <KpiSelector />
 
@@ -533,6 +542,11 @@ function ApplePanel({
   const displayFormat = data.displayFormat || "currency";
   const formatValue = (value: number) =>
     formatAppleMetricValue(value, displayFormat, data.currency);
+  const provenance = appleProvenance({
+    sourceProvider: data.sourceProvider,
+    retrievedAtUtc: data.retrievedAtUtc,
+    filingDates: data.points.map((point) => point.filingDate),
+  });
   const addAppleObservation = () => {
     const text = draftObservation.trim();
     if (!text || !relationship || !data.summary) return;
@@ -565,11 +579,7 @@ function ApplePanel({
         </span>
       </div>
 
-      <p className="text-[11px] leading-relaxed text-muted">
-        Source: {data.sourceProvider} · Retrieved{" "}
-        {new Date(data.retrievedAtUtc).toLocaleString()} · Cache{" "}
-        {data.cacheStatus}
-      </p>
+      <ProvenanceNote source={provenance.source} date={provenance.date} />
       <p className="text-[11px] leading-relaxed text-muted">
         Illustrative historical example only. These Apple figures are past SEC
         data for education, not a recommendation or a price target.
@@ -599,6 +609,12 @@ function ApplePanel({
             <p className="mt-1 text-[11px] leading-relaxed text-muted">
               Practise separating SEC facts, explanations, judgments, bias checks,
               counter-evidence, and open questions.
+            </p>
+            <p
+              data-testid="bias-check-explainer"
+              className="mt-1 text-[11px] leading-relaxed text-muted"
+            >
+              {BIAS_CHECK_EXPLAINER}
             </p>
             <button
               type="button"
@@ -695,6 +711,24 @@ function ApplePanel({
         identityNote="The selected metric and SEC source details will be saved with this observation. Choose its relationship to your thesis yourself."
       />
     </>
+  );
+}
+
+function ProvenanceNote({ source, date }: { source: string; date: string }) {
+  return (
+    <dl
+      data-testid="data-provenance"
+      className="space-y-0.5 text-[11px] leading-relaxed text-muted"
+    >
+      <div>
+        <dt className="inline font-medium text-ink/80">Source: </dt>
+        <dd className="inline">{source}</dd>
+      </div>
+      <div>
+        <dt className="inline font-medium text-ink/80">Date: </dt>
+        <dd className="inline">{date}</dd>
+      </div>
+    </dl>
   );
 }
 

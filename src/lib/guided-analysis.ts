@@ -79,6 +79,8 @@ export interface StageEvidenceSnapshot {
   openQuestions: string[];
   sourceProvider: string;
   retrievedAtUtc: string;
+  /** Absent on analyses saved before filing dates were captured. */
+  latestFilingDate?: string | null;
 }
 
 export interface JudgmentHistoryEntry {

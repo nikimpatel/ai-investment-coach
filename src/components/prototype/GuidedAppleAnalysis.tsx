@@ -11,7 +11,12 @@ import {
   buildAppleMarginExplanation,
   buildAppleSummarySentences,
 } from "@/lib/apple-trend-copy";
-import { BIAS_LIBRARY } from "@/lib/bias-library";
+import { BIAS_CHECK_EXPLAINER, BIAS_LIBRARY } from "@/lib/bias-library";
+import {
+  appleProvenance,
+  formatProvenanceDate,
+  latestFilingDate,
+} from "@/lib/data-provenance";
 import {
   CIRCLE_CHIPS,
   GUIDED_STAGE_IDS,
@@ -167,6 +172,9 @@ function buildEvidenceSnapshot(
     openQuestions: getGuidedStage(stageId).openQuestions,
     sourceProvider,
     retrievedAtUtc,
+    latestFilingDate: latestFilingDate(
+      responses.flatMap((response) => response.points.map((point) => point.filingDate)),
+    ),
   };
 }
 
@@ -512,6 +520,9 @@ function renderScreen(context: RenderContext) {
     return (
       <div className="space-y-3">
         <Layer label="Bias check">
+          <span data-testid="bias-check-explainer" className="mb-1 block font-medium text-ink">
+            {BIAS_CHECK_EXPLAINER}
+          </span>
           These prompts create a pause before a story becomes a judgment. Completing one
           is not an admission of bias, and the product will never diagnose you.
         </Layer>
@@ -613,14 +624,7 @@ function StageScreen({ context }: { context: RenderContext }) {
     const analogy = GUIDED_ANALOGIES[stageId];
     return (
       <div className="space-y-3">
-        <div className="flex flex-wrap gap-1 text-[10px] text-muted">
-          <span className="rounded-md border border-line px-2 py-1">
-            {stage.evidenceSnapshot.sourceProvider}
-          </span>
-          <span className="rounded-md border border-line px-2 py-1">
-            Saved {new Date(stage.evidenceSnapshot.retrievedAtUtc).toLocaleDateString()}
-          </span>
-        </div>
+        <EvidenceProvenance snapshot={stage.evidenceSnapshot} />
         {stage.evidenceSnapshot.metrics.map((metric) => (
           <Layer key={metric.metric} label="Fact">
             <span className="font-medium">{metric.metricLabel}</span>: {metric.startValue} →{" "}
@@ -736,6 +740,9 @@ function StageScreen({ context }: { context: RenderContext }) {
           <legend className="px-1 text-[10px] font-medium uppercase tracking-wide text-accent-deep">
             Bias check · {bias.name}
           </legend>
+          <p data-testid="bias-check-explainer" className="mb-2 text-[11px] text-muted">
+            {BIAS_CHECK_EXPLAINER}
+          </p>
           <p>{bias.prompt}</p>
           <div className="mt-3 grid gap-2">
             {(
@@ -1068,6 +1075,7 @@ function ReviewScreen({ context }: { context: RenderContext }) {
       <p className="text-xs leading-relaxed text-muted">
         Review every stage without a score or bias tally.
       </p>
+      <BiasCheckNote />
       {ordered.map((stageId) => {
         const stage = analysis.stages[stageId];
         const incomplete = stage.judgment.status === "record" && !stage.post.completed;
@@ -1138,6 +1146,7 @@ function SummaryScreen({ context }: { context: RenderContext }) {
       <aside className="rounded-xl border border-accent/30 bg-accent/5 px-3 py-2.5 text-xs">
         {summary.disclaimer}
       </aside>
+      <BiasCheckNote />
       <Layer label="Circle of Competence">
         {summary.circleOfCompetence.interpretation || "Circle of Competence not confirmed."}
         <span className="mt-1 block text-muted">
@@ -1231,7 +1240,14 @@ function SummaryScreen({ context }: { context: RenderContext }) {
                   {savedPacketIds.includes(packetId) ? "Update thesis packet" : "Save to thesis"}
                 </button>
                 <p className="mt-1 text-[10px] text-muted">
-                  Source saved with packet: {item.facts[0]?.sourceProvider}
+                  Source saved with packet:{" "}
+                  {
+                    appleProvenance({
+                      sourceProvider: item.facts[0]?.sourceProvider ?? "",
+                      retrievedAtUtc: item.facts[0]?.retrievedAtUtc ?? null,
+                      filingDates: [],
+                    }).source
+                  }
                 </p>
               </div>
             )}
@@ -1242,6 +1258,40 @@ function SummaryScreen({ context }: { context: RenderContext }) {
         Saved locally. Familiar comparisons are omitted from evidence packets.
       </p>
     </div>
+  );
+}
+
+function BiasCheckNote() {
+  return (
+    <p data-testid="bias-check-explainer" className="text-[11px] leading-relaxed text-muted">
+      {BIAS_CHECK_EXPLAINER}
+    </p>
+  );
+}
+
+function EvidenceProvenance({ snapshot }: { snapshot: StageEvidenceSnapshot }) {
+  const provenance = appleProvenance({
+    sourceProvider: snapshot.sourceProvider,
+    retrievedAtUtc: snapshot.retrievedAtUtc,
+    filingDates: [snapshot.latestFilingDate],
+  });
+  return (
+    <dl
+      data-testid="data-provenance"
+      className="space-y-0.5 rounded-md border border-line px-2 py-1.5 text-[10px] leading-relaxed text-muted"
+    >
+      <div>
+        <dt className="inline font-medium text-ink/80">Source: </dt>
+        <dd className="inline">{provenance.source}</dd>
+      </div>
+      <div>
+        <dt className="inline font-medium text-ink/80">Date: </dt>
+        <dd className="inline">
+          {provenance.date} Saved to this analysis on{" "}
+          {formatProvenanceDate(snapshot.retrievedAtUtc)}.
+        </dd>
+      </div>
+    </dl>
   );
 }
 

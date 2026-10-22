@@ -7,6 +7,9 @@ export type BiasId =
   | "overconfidence"
   | "outcome-preview";
 
+export const BIAS_CHECK_EXPLAINER =
+  "A bias check is one quick question that helps you notice when a common thinking shortcut, rather than the evidence, may be shaping your view.";
+
 export interface BiasDefinition {
   id: BiasId;
   name: string;

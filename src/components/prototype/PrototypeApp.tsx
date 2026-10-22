@@ -14,6 +14,7 @@ import type {
   ResearchAnswers,
   ThesisDraft,
 } from "@/lib/types";
+import { getActiveCompany, type DatasetMode } from "@/lib/company-context";
 import {
   createGuidedAnalysis,
   type AnalysisPacket,
@@ -29,6 +30,7 @@ import { FinancialPerformance } from "./FinancialPerformance";
 import { GuidedAppleAnalysis } from "./GuidedAppleAnalysis";
 import { GuidedResearch } from "./GuidedResearch";
 import { CoachQuestionCheck } from "./CoachQuestionCheck";
+import { CompanyContextBar } from "./CompanyContextBar";
 import { PhoneFrame } from "./PhoneFrame";
 import { ReflectionPlaybook } from "./ReflectionPlaybook";
 import { StepRail } from "./StepRail";
@@ -102,6 +104,10 @@ export function PrototypeApp({
   const [guidedStorageIssue, setGuidedStorageIssue] = useState<string | null>(
     null,
   );
+  const [financeDatasetChoice, setFinanceDatasetChoice] =
+    useState<DatasetMode | null>(null);
+  const financeDataset: DatasetMode =
+    financeDatasetChoice ?? (guidedAnalysis ? "apple" : "harborline");
 
   useEffect(() => {
     const result = loadGuidedAnalysis(window.localStorage);
@@ -132,6 +138,7 @@ export function PrototypeApp({
     if (step === "performance" && guidedAnalysis) {
       setGuidedOpen(true);
     }
+    setFinanceDatasetChoice(null);
     setState((prev) => ({ ...prev, step }));
   };
 
@@ -187,6 +194,7 @@ export function PrototypeApp({
             setState((prev) => ({ ...prev, researchStep }))
           }
           onContinue={() => {
+            setFinanceDatasetChoice(null);
             setState((prev) => ({
               ...prev,
               step: "performance",
@@ -209,7 +217,8 @@ export function PrototypeApp({
           />
         ) : (
         <FinancialPerformance
-          initialDataset={guidedAnalysis ? "apple" : "harborline"}
+          initialDataset={financeDataset}
+          onDatasetChange={setFinanceDatasetChoice}
           performanceObservation={state.thesis.performanceObservation}
           onObservationChange={(performanceObservation) =>
             setState((prev) => ({
@@ -284,14 +293,22 @@ export function PrototypeApp({
           onRestart={() => {
             setState(createInitialState());
             setGuidedOpen(false);
+            setFinanceDatasetChoice(null);
           }}
         />
       );
       break;
   }
 
+  const activeCompany = getActiveCompany({
+    step: state.step,
+    financeDataset,
+    guidedOpen: guidedOpen && guidedAnalysis !== null,
+  });
+
   const body = (
     <>
+      <CompanyContextBar company={activeCompany} />
       {!guidedOpen && (
         <div className="@container">
           <div className="flex flex-col gap-3 border-b border-line px-3 pb-3 @md:flex-row @md:items-start">
