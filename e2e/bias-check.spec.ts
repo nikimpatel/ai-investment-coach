@@ -83,3 +83,18 @@ test("recording a judgment before answering the bias check explains the bias che
   await expect(blocked.getByTestId("bias-check-explainer")).toHaveText(EXPLAINER);
   await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeDisabled();
 });
+
+test("the interpretation field's name excludes the bias explainer, which describes it instead", async ({ page }) => {
+  await walkToFirstBiasCheck(page);
+  await page.getByRole("button", { name: "Continue to your judgment" }).click();
+  await page.getByRole("button", { name: "Record a judgment" }).click();
+
+  const field = page.getByRole("textbox", {
+    name: "Your interpretation of this historical evidence",
+    exact: true,
+  });
+  await expect(field).toHaveAccessibleName("Your interpretation of this historical evidence");
+  await expect(field).toHaveAccessibleDescription(
+    `Complete or explicitly skip the bias check before recording. ${EXPLAINER}`,
+  );
+});

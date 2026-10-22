@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   fetchAppleFinancialHistory,
   type AppleFinancialHistoryResponse,
@@ -12,6 +12,11 @@ import {
   buildAppleSummarySentences,
 } from "@/lib/apple-trend-copy";
 import { BIAS_CHECK_EXPLAINER, BIAS_LIBRARY } from "@/lib/bias-library";
+import {
+  APPLE_LOAD_ERROR_MESSAGE,
+  MISSING_INFORMATION_HINT,
+  STAGE_EVIDENCE_INTRO,
+} from "@/lib/user-facing-copy";
 import {
   appleProvenance,
   latestFilingDate,
@@ -230,11 +235,9 @@ export function GuidedAppleAnalysis({
         };
         onChange(next);
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         if (!cancelled) {
-          setLoadError(
-            error instanceof Error ? error.message : "Could not load Apple evidence.",
-          );
+          setLoadError(APPLE_LOAD_ERROR_MESSAGE);
         }
       })
       .finally(() => {
@@ -579,7 +582,7 @@ function StageScreen({ context }: { context: RenderContext }) {
     return (
       <div className="space-y-3">
         <p className="text-xs leading-relaxed text-muted">
-          This stage uses existing Sprint 1–3 evidence only:
+          {STAGE_EVIDENCE_INTRO}
         </p>
         <ul className="space-y-1 text-xs text-ink">
           {definition.metrics.map((metric) => (
@@ -870,6 +873,7 @@ function JudgmentScreen({
   const [choice, setChoice] = useState(stage.judgment.status);
   const [text, setText] = useState(stage.judgment.text);
   const recordAllowed = stage.biasCheck.status !== "unseen";
+  const recordBlockedId = useId();
   const canContinue =
     choice !== "none" && (choice !== "record" || (recordAllowed && text.trim().length > 0));
   return (
@@ -902,23 +906,29 @@ function JudgmentScreen({
         </div>
       </fieldset>
       {choice === "record" && (
-        <label className="block text-xs font-medium text-ink">
-          Your interpretation of this historical evidence
-          <textarea
-            rows={4}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 font-normal outline-none focus:border-accent"
-          />
+        <div>
+          <label className="block text-xs font-medium text-ink">
+            Your interpretation of this historical evidence
+            <textarea
+              rows={4}
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              aria-describedby={recordAllowed ? undefined : recordBlockedId}
+              className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 font-normal outline-none focus:border-accent"
+            />
+          </label>
           {!recordAllowed && (
-            <span className="mt-1 block text-[11px] text-muted">
+            <p
+              id={recordBlockedId}
+              className="mt-1 block text-[11px] font-medium text-muted"
+            >
               Complete or explicitly skip the bias check before recording.
               <span data-testid="bias-check-explainer" className="mt-0.5 block">
                 {BIAS_CHECK_EXPLAINER}
               </span>
-            </span>
+            </p>
           )}
-        </label>
+        </div>
       )}
       {choice === "uncertain" && (
         <label className="block text-xs font-medium text-ink">
@@ -969,7 +979,7 @@ function PostJudgmentScreen({
   const fields = [
     ["counterEvidence", "Counter-evidence", "Which displayed fact could weaken your view?"],
     ["alternativeExplanations", "Alternative explanations", "What else could produce these numbers?"],
-    ["missingInformation", "Missing information", "What is outside Sprint 1–3 scope?"],
+    ["missingInformation", "Missing information", MISSING_INFORMATION_HINT],
     ["mindChanger", "What would change my mind", "Name an observation, not a price target."],
   ] as const;
   const complete =
