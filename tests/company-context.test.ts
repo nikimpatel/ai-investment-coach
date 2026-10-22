@@ -4,8 +4,11 @@ import {
   APPLE_COMPANY,
   DEMO_COMPANY,
   DEMO_LABEL,
+  REAL_COMPANY_LABEL,
+  describeCompaniesOnScreen,
   describeCompany,
   getActiveCompany,
+  getCompaniesOnScreen,
 } from "../src/lib/company-context";
 import { harborlineRevenueSeries } from "../src/lib/harborline-financials";
 import { sampleCompany } from "../src/lib/sample-data";
@@ -62,4 +65,41 @@ test("the guided analysis is always about Apple", () => {
     getActiveCompany({ step: "performance", financeDataset: "harborline", guidedOpen: true }),
     APPLE_COMPANY,
   );
+});
+
+test("Thesis names Apple alongside Harborline when Apple evidence is on the page", () => {
+  const companies = getCompaniesOnScreen({
+    step: "thesis",
+    financeDataset: "harborline",
+    guidedOpen: false,
+    thesisHasAppleEvidence: true,
+  });
+  assert.deepEqual(companies, [DEMO_COMPANY, APPLE_COMPANY]);
+  assert.equal(
+    describeCompaniesOnScreen(companies),
+    "Harborline Logistics (HLG) · Demo with evidence from Apple Inc. (AAPL)",
+  );
+  assert.equal(REAL_COMPANY_LABEL, "Real company");
+});
+
+test("Thesis without Apple evidence names only Harborline", () => {
+  const companies = getCompaniesOnScreen({
+    step: "thesis",
+    financeDataset: "apple",
+    guidedOpen: false,
+    thesisHasAppleEvidence: false,
+  });
+  assert.deepEqual(companies, [DEMO_COMPANY]);
+});
+
+test("Apple evidence saved in the thesis only changes the Thesis label", () => {
+  for (const step of steps.filter((candidate) => candidate !== "thesis")) {
+    const companies = getCompaniesOnScreen({
+      step,
+      financeDataset: "harborline",
+      guidedOpen: false,
+      thesisHasAppleEvidence: true,
+    });
+    assert.deepEqual(companies, [DEMO_COMPANY], step);
+  }
 });

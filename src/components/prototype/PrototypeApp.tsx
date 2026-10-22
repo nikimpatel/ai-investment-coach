@@ -14,7 +14,7 @@ import type {
   ResearchAnswers,
   ThesisDraft,
 } from "@/lib/types";
-import { getActiveCompany, type DatasetMode } from "@/lib/company-context";
+import { getCompaniesOnScreen, type DatasetMode } from "@/lib/company-context";
 import {
   createGuidedAnalysis,
   type AnalysisPacket,
@@ -300,15 +300,17 @@ export function PrototypeApp({
       break;
   }
 
-  const activeCompany = getActiveCompany({
+  const companiesOnScreen = getCompaniesOnScreen({
     step: state.step,
     financeDataset,
     guidedOpen: guidedOpen && guidedAnalysis !== null,
+    thesisHasAppleEvidence:
+      state.thesis.analysisPackets.length > 0 || state.thesis.performanceEvidence !== null,
   });
 
   const body = (
     <>
-      <CompanyContextBar company={activeCompany} />
+      <CompanyContextBar companies={companiesOnScreen} />
       {!guidedOpen && (
         <div className="@container">
           <div className="flex flex-col gap-3 border-b border-line px-3 pb-3 @md:flex-row @md:items-start">

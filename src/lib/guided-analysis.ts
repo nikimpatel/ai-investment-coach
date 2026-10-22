@@ -133,6 +133,7 @@ export interface AnalysisPacket {
   biasCheckStatus: BiasCheckStatus;
   reviewIncomplete: boolean;
   sourceProvider: string;
+  latestFilingDate?: string | null;
   relationship: EvidenceRelationship;
   savedAt: string;
 }
@@ -453,6 +454,7 @@ export function buildAnalysisPacket(
     biasCheckStatus: stage.biasCheck.status,
     reviewIncomplete: isStageReviewIncomplete(stage),
     sourceProvider: stage.evidenceSnapshot.sourceProvider,
+    latestFilingDate: stage.evidenceSnapshot.latestFilingDate ?? null,
     relationship,
     savedAt: now,
   };

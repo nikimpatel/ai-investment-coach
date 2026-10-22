@@ -60,3 +60,36 @@ export async function walkToFirstBiasCheck(page: Page) {
   await page.getByRole("button", { name: "Confirm" }).click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
 }
+
+export const INTERNAL_JARGON = /\bfixtures?\b|\bsprints?\b|\bAPIs?\b|localhost|TenYearExplorer/i;
+
+export async function expectNoInternalJargon(page: Page, where: string) {
+  await expect(page.locator("body"), where).not.toContainText(INTERNAL_JARGON, {
+    useInnerText: true,
+  });
+}
+
+/** Defers the first stage, then jumps to the summary via saved state, as the remaining stages need more metrics. */
+export async function openGuidedSummaryWithFirstStage(page: Page) {
+  await walkToFirstBiasCheck(page);
+  await page.getByRole("button", { name: "Skip this check" }).click();
+  await page.getByRole("button", { name: "Continue to your judgment" }).click();
+  await page.getByRole("button", { name: "Defer this judgment" }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.localStorage.getItem("aic.appleGuidedAnalysis.v1")))
+    .toContain('"status":"defer"');
+  await page.evaluate(() => {
+    const key = "aic.appleGuidedAnalysis.v1";
+    const saved = JSON.parse(window.localStorage.getItem(key)!);
+    saved.currentScreen = "summary";
+    window.localStorage.setItem(key, JSON.stringify(saved));
+  });
+  await page.reload();
+  await goToStep(page, "Finance");
+  const summary = page.getByRole("button", { name: "Save to thesis" });
+  const resume = page.getByRole("button", { name: "Continue guided Apple analysis" });
+  await expect(summary.or(resume).first()).toBeVisible();
+  if (await resume.isVisible()) await resume.click();
+  await expect(summary).toBeVisible();
+}

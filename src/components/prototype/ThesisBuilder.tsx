@@ -1,12 +1,16 @@
 "use client";
 
 import { AlertCircle, Sparkles } from "@/components/ui/icons";
+import { APPLE_COMPANY } from "@/lib/company-context";
+import { appleProvenance } from "@/lib/data-provenance";
 import { attractionPromptsValuationCheck } from "@/lib/research-wizard";
 import type {
   EvidenceRelationship,
   ResearchAnswers,
   ThesisDraft,
 } from "@/lib/types";
+import { CompanyName } from "./CompanyContextBar";
+import { ProvenanceNote } from "./ProvenanceNote";
 
 interface ThesisBuilderProps {
   thesis: ThesisDraft;
@@ -151,7 +155,12 @@ export function ThesisBuilder({
             <div className="mt-2 rounded-lg border border-line bg-paper px-2.5 py-2 text-[11px] leading-relaxed text-muted">
               <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
                 <dt className="font-medium text-ink">Company</dt>
-                <dd>{thesis.performanceEvidence.company}</dd>
+                <dd
+                  data-testid="performance-evidence-company"
+                  className="flex flex-wrap items-center gap-x-1.5 gap-y-1"
+                >
+                  <CompanyName company={APPLE_COMPANY} />
+                </dd>
                 <dt className="font-medium text-ink">Metric</dt>
                 <dd>{thesis.performanceEvidence.metricOrMargin}</dd>
                 <dt className="font-medium text-ink">Years</dt>
@@ -209,6 +218,12 @@ export function ThesisBuilder({
             >
               Guided Apple analysis evidence
             </h4>
+            <p
+              data-testid="guided-analysis-packets-company"
+              className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted"
+            >
+              <CompanyName company={APPLE_COMPANY} />
+            </p>
             <p className="mt-1 text-[11px] leading-relaxed text-muted">
               Saved fact snapshots and your interpretations. Familiar comparisons
               are never included.
@@ -228,12 +243,7 @@ export function ThesisBuilder({
                           key={packet.id}
                           className="rounded-lg border border-line bg-mist px-2.5 py-2 text-[11px]"
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="font-medium text-ink">{packet.stageName}</p>
-                            <span className="rounded border border-line bg-paper px-1.5 py-0.5 text-[9px] text-muted">
-                              {packet.sourceProvider}
-                            </span>
-                          </div>
+                          <p className="font-medium text-ink">{packet.stageName}</p>
                           <p className="mt-1 text-muted">
                             {packet.factSnapshot
                               .map(
@@ -246,6 +256,16 @@ export function ThesisBuilder({
                             Judgment: {packet.judgmentStatus}
                             {packet.judgmentText ? ` — ${packet.judgmentText}` : ""}
                           </p>
+                          <div className="mt-1">
+                            <ProvenanceNote
+                              {...appleProvenance({
+                                sourceProvider: packet.sourceProvider,
+                                retrievedAtUtc:
+                                  packet.factSnapshot[0]?.retrievedAtUtc ?? null,
+                                filingDates: [packet.latestFilingDate ?? null],
+                              })}
+                            />
+                          </div>
                           {packet.reviewIncomplete && (
                             <p className="mt-1 font-medium text-ink">
                               Review incomplete

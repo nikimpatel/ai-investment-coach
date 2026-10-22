@@ -210,6 +210,11 @@ test("summary preserves layers and thesis packets exclude analogies", () => {
   assert.equal(serializedPacket.includes(GUIDED_ANALOGIES["revenue-growth"].comparison), false);
   assert.equal(packet.sourceProvider, "SEC EDGAR fixture");
   assert.equal(packet.id, "analysis-4:revenue-growth");
+  assert.equal(packet.latestFilingDate, null);
+
+  analysis.stages["revenue-growth"].evidenceSnapshot!.latestFilingDate = "2025-10-31";
+  const datedPacket = buildAnalysisPacket(analysis, "revenue-growth", "supports", now);
+  assert.equal(datedPacket.latestFilingDate, "2025-10-31");
 });
 
 test("analysis can complete with deferred or uncertain stages and marks Complete later records", () => {
