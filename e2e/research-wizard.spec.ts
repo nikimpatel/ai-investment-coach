@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { mockAppleApi, openWalkthrough } from "./helpers";
+import { goToStep, mockAppleApi, openWalkthrough } from "./helpers";
 
 const reasons = [
-  /^Why we ask: What first draws you in shapes what you look for next/,
+  /^Why we ask: What first draws you in shapes what you look for next; if it was a growth story or recent news, the Thesis step reminds you to check valuation\.$/,
   /^Why we ask: How long you plan to stay invested decides which risks/,
   /^Why we ask: Writing evidence down separates facts from the story/,
   /^Why we ask: Naming what could break the idea now/,
@@ -41,4 +41,24 @@ test("required written answers still block Next when too short", async ({ page }
   await expect(page.getByRole("button", { name: "Next question" })).toBeDisabled();
   await evidence.fill("Filings show steady contract renewals.");
   await expect(page.getByRole("button", { name: "Next question" })).toBeEnabled();
+});
+
+test("the Thesis valuation reminder appears only for growth-story or recent-news answers", async ({ page }) => {
+  const reminder = page.getByText("Possible missing reasoning");
+  const cases = [
+    ["A growth story that clicked", true],
+    ["Recent news or a podcast", true],
+    ["I recognise the brand or sector", false],
+    ["It looked reasonably valued", false],
+    ["Income / dividend appeal", false],
+    ["Someone I trust mentioned it", false],
+  ] as const;
+  for (const [answer, shown] of cases) {
+    await goToStep(page, "Research");
+    await page.getByRole("radio", { name: answer }).check();
+    await goToStep(page, "Thesis");
+    await expect(page.getByRole("heading", { name: "Structure your reasoning" })).toBeVisible();
+    if (shown) await expect(reminder, answer).toBeVisible();
+    else await expect(reminder, answer).toHaveCount(0);
+  }
 });

@@ -1,6 +1,16 @@
-import type { ResearchAnswers } from "./types";
+import type { AttractionDriver, ResearchAnswers } from "./types";
 
 export const MIN_WRITTEN_ANSWER_LENGTH = 13;
+
+/** Attraction answers that make the Thesis step prompt for a valuation check. */
+export const VALUATION_CUE_ATTRACTIONS: readonly AttractionDriver[] = [
+  "growth-story",
+  "recent-news",
+];
+
+export function attractionPromptsValuationCheck(attraction: AttractionDriver | ""): boolean {
+  return attraction !== "" && VALUATION_CUE_ATTRACTIONS.includes(attraction);
+}
 
 export type ResearchWizardStepId =
   | "attraction"
@@ -20,7 +30,7 @@ export const RESEARCH_WIZARD_STEPS: readonly ResearchWizardStep[] = [
     id: "attraction",
     required: true,
     whyWeAsk:
-      "What first draws you in shapes what you look for next; the Thesis step uses this answer to flag a missing valuation check.",
+      "What first draws you in shapes what you look for next; if it was a growth story or recent news, the Thesis step reminds you to check valuation.",
   },
   {
     id: "time-horizon",

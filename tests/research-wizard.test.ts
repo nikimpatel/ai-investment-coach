@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import {
   MIN_WRITTEN_ANSWER_LENGTH,
   RESEARCH_WIZARD_STEPS,
+  VALUATION_CUE_ATTRACTIONS,
+  attractionPromptsValuationCheck,
   canAdvanceResearchStep,
   requirementLabel,
 } from "../src/lib/research-wizard";
-import type { ResearchAnswers } from "../src/lib/types";
+import type { AttractionDriver, ResearchAnswers } from "../src/lib/types";
 
 const empty: ResearchAnswers = {
   attraction: "",
@@ -64,4 +66,31 @@ test("written answers need a short sentence, matching the previous threshold", (
 
 test("unknown steps cannot advance", () => {
   assert.equal(canAdvanceResearchStep(99, empty), false);
+});
+
+test("only growth-story and recent-news answers prompt the Thesis valuation check", () => {
+  assert.deepEqual([...VALUATION_CUE_ATTRACTIONS], ["growth-story", "recent-news"]);
+  const expected: Record<AttractionDriver, boolean> = {
+    "growth-story": true,
+    "recent-news": true,
+    "familiar-brand": false,
+    valuation: false,
+    dividend: false,
+    "peer-tip": false,
+  };
+  for (const [attraction, prompts] of Object.entries(expected)) {
+    assert.equal(
+      attractionPromptsValuationCheck(attraction as AttractionDriver),
+      prompts,
+      attraction,
+    );
+  }
+  assert.equal(attractionPromptsValuationCheck(""), false);
+});
+
+test("the first reason names exactly the answers that prompt a valuation check", () => {
+  const reason = RESEARCH_WIZARD_STEPS[0].whyWeAsk;
+  assert.match(reason, /if it was a growth story or recent news/);
+  assert.match(reason, /Thesis step reminds you to check valuation/);
+  assert.doesNotMatch(reason, /uses this answer/);
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertCircle, Sparkles } from "@/components/ui/icons";
+import { attractionPromptsValuationCheck } from "@/lib/research-wizard";
 import type {
   EvidenceRelationship,
   ResearchAnswers,
@@ -68,9 +69,7 @@ export function ThesisBuilder({
   onContinue,
 }: ThesisBuilderProps) {
   const valuationThin = thesis.valuation.trim().length < 20;
-  const growthHeavy =
-    research.attraction === "growth-story" ||
-    research.attraction === "recent-news";
+  const growthHeavy = attractionPromptsValuationCheck(research.attraction);
   const missingValuationCue = growthHeavy && valuationThin;
 
   const filled = fields.filter((field) => thesis[field.key].trim().length > 8);
