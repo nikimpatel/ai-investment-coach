@@ -72,3 +72,14 @@ test("the review screen explains the bias check status it lists", async ({ page 
   await expect(page.getByTestId("bias-check-explainer")).toHaveText(EXPLAINER);
   await expect(page.getByText(/Bias check: skipped/)).toBeVisible();
 });
+
+test("recording a judgment before answering the bias check explains the bias check", async ({ page }) => {
+  await walkToFirstBiasCheck(page);
+  await page.getByRole("button", { name: "Continue to your judgment" }).click();
+  await page.getByRole("button", { name: "Record a judgment" }).click();
+
+  const blocked = page.getByText("Complete or explicitly skip the bias check before recording.");
+  await expect(blocked).toBeVisible();
+  await expect(blocked.getByTestId("bias-check-explainer")).toHaveText(EXPLAINER);
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeDisabled();
+});

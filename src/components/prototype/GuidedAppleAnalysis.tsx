@@ -913,6 +913,9 @@ function JudgmentScreen({
           {!recordAllowed && (
             <span className="mt-1 block text-[11px] text-muted">
               Complete or explicitly skip the bias check before recording.
+              <span data-testid="bias-check-explainer" className="mt-0.5 block">
+                {BIAS_CHECK_EXPLAINER}
+              </span>
             </span>
           )}
         </label>
