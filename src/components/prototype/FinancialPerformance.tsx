@@ -40,11 +40,16 @@ import { DEMO_LABEL, type DatasetMode } from "@/lib/company-context";
 import { appleProvenance, demoProvenance } from "@/lib/data-provenance";
 import { BIAS_CHECK_EXPLAINER } from "@/lib/bias-library";
 import {
-  APPLE_INSUFFICIENT_HISTORY_MESSAGE,
+  APPLE_INSUFFICIENT_HISTORY_TITLE,
   APPLE_LOADING_MESSAGE,
   APPLE_LOAD_ERROR_MESSAGE,
   APPLE_LOAD_ERROR_TITLE,
+  APPLE_UNAVAILABLE_MESSAGE,
+  APPLE_UNAVAILABLE_TITLE,
   APPLE_UNSUPPORTED_METRIC_MESSAGE,
+  EXPLORE_DEMO_ACTION,
+  classifyAppleResponse,
+  financeInsufficientHistoryMessage,
   appleChartCaption,
   appleTableCaption,
 } from "@/lib/user-facing-copy";
@@ -254,6 +259,7 @@ export function FinancialPerformance({
               setAppleFetchError(null);
               setAppleReloadKey((key) => key + 1);
             }}
+            onExploreDemo={() => switchDataset("harborline")}
             data={appleData}
             appleMetric={appleMetric}
             setAppleMetric={setAppleMetric}
@@ -420,6 +426,7 @@ function ApplePanel({
   loading,
   fetchError,
   onRetry,
+  onExploreDemo,
   data,
   appleMetric,
   setAppleMetric,
@@ -447,6 +454,7 @@ function ApplePanel({
   loading: boolean;
   fetchError: string | null;
   onRetry: () => void;
+  onExploreDemo: () => void;
   data: AppleFinancialHistoryResponse | null;
   appleMetric: AppleMetricId;
   setAppleMetric: (value: AppleMetricId) => void;
@@ -479,16 +487,12 @@ function ApplePanel({
     );
   }
 
-  if (
-    fetchError ||
-    data?.status === "InvalidConfiguration" ||
-    data?.status === "ProviderUnavailable"
-  ) {
+  if (fetchError) {
     return (
       <StateBanner
         title={APPLE_LOAD_ERROR_TITLE}
         body={APPLE_LOAD_ERROR_MESSAGE}
-        onRetry={onRetry}
+        action={{ label: "Try again", onClick: onRetry }}
       />
     );
   }
@@ -504,7 +508,28 @@ function ApplePanel({
     );
   }
 
-  if (data.status === "UnsupportedMetric") {
+  const issue = classifyAppleResponse(data);
+  if (issue?.kind === "retryable") {
+    return (
+      <StateBanner
+        title={APPLE_LOAD_ERROR_TITLE}
+        body={APPLE_LOAD_ERROR_MESSAGE}
+        action={{ label: "Try again", onClick: onRetry }}
+      />
+    );
+  }
+
+  if (issue?.kind === "unavailable") {
+    return (
+      <StateBanner
+        title={APPLE_UNAVAILABLE_TITLE}
+        body={APPLE_UNAVAILABLE_MESSAGE}
+        action={{ label: EXPLORE_DEMO_ACTION, onClick: onExploreDemo }}
+      />
+    );
+  }
+
+  if (issue?.kind === "unsupported-metric") {
     return (
       <StateBanner
         title="Unsupported request"
@@ -513,15 +538,16 @@ function ApplePanel({
     );
   }
 
-  if (
-    data.status === "InsufficientHistory" ||
-    !data.summary ||
-    data.points.length === 0
-  ) {
+  if (issue || !data.summary) {
+    const counts = issue?.kind === "insufficient-history" ? issue : null;
     return (
       <StateBanner
-        title="Insufficient reliable history"
-        body={APPLE_INSUFFICIENT_HISTORY_MESSAGE}
+        title={APPLE_INSUFFICIENT_HISTORY_TITLE}
+        body={financeInsufficientHistoryMessage(
+          counts?.availableYears ?? null,
+          counts?.requestedYears ?? null,
+        )}
+        action={{ label: EXPLORE_DEMO_ACTION, onClick: onExploreDemo }}
       />
     );
   }
@@ -1314,11 +1340,11 @@ function ObservationEditor({
 function StateBanner({
   title,
   body,
-  onRetry,
+  action,
 }: {
   title: string;
   body: string;
-  onRetry?: () => void;
+  action?: { label: string; onClick: () => void };
 }) {
   return (
     <aside
@@ -1330,13 +1356,13 @@ function StateBanner({
         <div>
           <p className="text-sm font-medium text-ink">{title}</p>
           <p className="mt-1 text-[11px] leading-relaxed text-muted">{body}</p>
-          {onRetry && (
+          {action && (
             <button
               type="button"
-              onClick={onRetry}
+              onClick={action.onClick}
               className="mt-2 text-[11px] font-medium text-accent-deep underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
-              Try again
+              {action.label}
             </button>
           )}
         </div>

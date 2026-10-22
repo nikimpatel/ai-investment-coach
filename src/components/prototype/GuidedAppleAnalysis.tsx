@@ -13,9 +13,15 @@ import {
 } from "@/lib/apple-trend-copy";
 import { BIAS_CHECK_EXPLAINER, BIAS_LIBRARY } from "@/lib/bias-library";
 import {
+  APPLE_LOADING_MESSAGE,
   APPLE_LOAD_ERROR_MESSAGE,
+  APPLE_UNAVAILABLE_MESSAGE,
+  EXPLORE_DEMO_ACTION,
   MISSING_INFORMATION_HINT,
   STAGE_EVIDENCE_INTRO,
+  classifyAppleResponse,
+  guidedInsufficientHistoryMessage,
+  type AppleLoadIssue,
 } from "@/lib/user-facing-copy";
 import {
   appleProvenance,
@@ -53,6 +59,7 @@ interface GuidedAppleAnalysisProps {
   analysis: AppleGuidedAnalysisV1;
   onChange: (analysis: AppleGuidedAnalysisV1) => void;
   onExit: () => void;
+  onExploreDemo: () => void;
   onReset: () => void;
   onSavePacket: (packet: AnalysisPacket) => void;
   savedPacketIds: string[];
@@ -140,18 +147,19 @@ function relationshipCalculation(
   return [];
 }
 
+class AppleEvidenceError extends Error {
+  constructor(readonly issue: AppleLoadIssue) {
+    super(issue.kind);
+  }
+}
+
 function buildEvidenceSnapshot(
   stageId: GuidedStageId,
   responses: AppleFinancialHistoryResponse[],
 ): StageEvidenceSnapshot {
-  const invalid = responses.find(
-    (response) =>
-      !["Success", "PartiallySupported"].includes(response.status) || !response.summary,
-  );
-  if (invalid) {
-    throw new Error(
-      invalid.detail || `Reliable ${invalid.metricLabel || invalid.metric} history is unavailable.`,
-    );
+  for (const response of responses) {
+    const issue = classifyAppleResponse(response);
+    if (issue) throw new AppleEvidenceError(issue);
   }
   const sourceProvider = responses[0]?.sourceProvider ?? "Unknown";
   const retrievedAtUtc = responses
@@ -186,13 +194,14 @@ export function GuidedAppleAnalysis({
   analysis,
   onChange,
   onExit,
+  onExploreDemo,
   onReset,
   onSavePacket,
   savedPacketIds,
 }: GuidedAppleAnalysisProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const loadingStageRef = useRef<GuidedStageId | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<AppleLoadIssue | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
   const [packetRelationships, setPacketRelationships] = useState<
     Partial<Record<GuidedStageId, EvidenceRelationship>>
@@ -235,9 +244,11 @@ export function GuidedAppleAnalysis({
         };
         onChange(next);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (!cancelled) {
-          setLoadError(APPLE_LOAD_ERROR_MESSAGE);
+          setLoadError(
+            error instanceof AppleEvidenceError ? error.issue : { kind: "retryable" },
+          );
         }
       })
       .finally(() => {
@@ -305,6 +316,7 @@ export function GuidedAppleAnalysis({
           stageContext,
           loadError,
           setLoadError,
+          onExploreDemo,
           packetRelationships,
           savedPacketIds,
           setPacketRelationships,
@@ -364,8 +376,9 @@ function screenTitle(screen: GuidedScreenId): string {
 interface RenderContext {
   analysis: AppleGuidedAnalysisV1;
   stageContext: ReturnType<typeof parseStageScreen>;
-  loadError: string | null;
-  setLoadError: React.Dispatch<React.SetStateAction<string | null>>;
+  loadError: AppleLoadIssue | null;
+  setLoadError: React.Dispatch<React.SetStateAction<AppleLoadIssue | null>>;
+  onExploreDemo: () => void;
   packetRelationships: Partial<Record<GuidedStageId, EvidenceRelationship>>;
   savedPacketIds: string[];
   setPacketRelationships: React.Dispatch<
@@ -569,6 +582,7 @@ function StageScreen({ context }: { context: RenderContext }) {
     stageContext,
     loadError,
     setLoadError,
+    onExploreDemo,
     setScreen,
     updateStage,
     onChange,
@@ -608,17 +622,36 @@ function StageScreen({ context }: { context: RenderContext }) {
           {loadError ? (
             <>
               <p className="font-medium text-ink">Evidence unavailable</p>
-              <p className="mt-1">{loadError}</p>
-              <button
-                type="button"
-                className={`${ACTION_CLASS} mt-2`}
-                onClick={() => setLoadError(null)}
-              >
-                Try again
-              </button>
+              <p className="mt-1">
+                {loadError.kind === "retryable"
+                  ? APPLE_LOAD_ERROR_MESSAGE
+                  : loadError.kind === "insufficient-history"
+                    ? guidedInsufficientHistoryMessage(
+                        loadError.availableYears,
+                        loadError.requestedYears,
+                      )
+                    : APPLE_UNAVAILABLE_MESSAGE}
+              </p>
+              {loadError.kind === "retryable" ? (
+                <button
+                  type="button"
+                  className={`${ACTION_CLASS} mt-2`}
+                  onClick={() => setLoadError(null)}
+                >
+                  Try again
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={`${ACTION_CLASS} mt-2`}
+                  onClick={onExploreDemo}
+                >
+                  {EXPLORE_DEMO_ACTION}
+                </button>
+              )}
             </>
           ) : (
-            "Loading verified Apple annual history…"
+            APPLE_LOADING_MESSAGE
           )}
         </div>
       );

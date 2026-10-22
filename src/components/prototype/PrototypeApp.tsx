@@ -211,6 +211,10 @@ export function PrototypeApp({
             analysis={guidedAnalysis}
             onChange={setGuidedAnalysis}
             onExit={() => setGuidedOpen(false)}
+            onExploreDemo={() => {
+              setGuidedOpen(false);
+              setFinanceDatasetChoice("harborline");
+            }}
             onReset={clearGuidedAnalysis}
             onSavePacket={saveAnalysisPacket}
             savedPacketIds={state.thesis.analysisPackets.map((packet) => packet.id)}
