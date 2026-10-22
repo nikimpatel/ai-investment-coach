@@ -36,16 +36,34 @@ import {
   financialKpiOptions,
   harborlineRevenueSeries,
 } from "@/lib/harborline-financials";
+import { DEMO_LABEL, type DatasetMode } from "@/lib/company-context";
+import { appleProvenance, demoProvenance } from "@/lib/data-provenance";
+import { BIAS_CHECK_EXPLAINER } from "@/lib/bias-library";
+import {
+  APPLE_INSUFFICIENT_HISTORY_TITLE,
+  APPLE_LOADING_MESSAGE,
+  APPLE_LOAD_ERROR_MESSAGE,
+  APPLE_LOAD_ERROR_TITLE,
+  APPLE_UNAVAILABLE_MESSAGE,
+  APPLE_UNAVAILABLE_TITLE,
+  APPLE_UNSUPPORTED_METRIC_MESSAGE,
+  EXPLORE_DEMO_ACTION,
+  classifyAppleResponse,
+  financeInsufficientHistoryMessage,
+  appleChartCaption,
+  appleTableCaption,
+} from "@/lib/user-facing-copy";
+import { ProvenanceNote } from "./ProvenanceNote";
 import type {
   EvidenceRelationship,
   PerformanceObservationEvidence,
 } from "@/lib/types";
 
 type ViewMode = "chart" | "table";
-type DatasetMode = "harborline" | "apple";
 
 interface FinancialPerformanceProps {
   initialDataset?: DatasetMode;
+  onDatasetChange?: (dataset: DatasetMode) => void;
   performanceObservation: string;
   onObservationChange: (value: string) => void;
   performanceEvidence: PerformanceObservationEvidence | null;
@@ -60,6 +78,7 @@ interface FinancialPerformanceProps {
 
 export function FinancialPerformance({
   initialDataset = "harborline",
+  onDatasetChange,
   performanceObservation,
   onObservationChange,
   performanceEvidence,
@@ -85,6 +104,7 @@ export function FinancialPerformance({
   );
   const [appleLoading, setAppleLoading] = useState(false);
   const [appleFetchError, setAppleFetchError] = useState<string | null>(null);
+  const [appleReloadKey, setAppleReloadKey] = useState(0);
   const [expandedFilingYear, setExpandedFilingYear] = useState<string | null>(
     null,
   );
@@ -127,7 +147,7 @@ export function FinancialPerformance({
     return () => {
       cancelled = true;
     };
-  }, [dataset, appleMetric]);
+  }, [dataset, appleMetric, appleReloadKey]);
 
   const harborlineStats = useMemo(
     () => buildTrendSummary(harborlineRevenueSeries.points),
@@ -152,6 +172,7 @@ export function FinancialPerformance({
 
   const switchDataset = (next: DatasetMode) => {
     setDataset(next);
+    onDatasetChange?.(next);
     setConfirmMessage(null);
     setViewMode("chart");
     setExpandedFilingYear(null);
@@ -192,7 +213,7 @@ export function FinancialPerformance({
         >
           {(
             [
-              { id: "harborline", label: "Harborline demo" },
+              { id: "harborline", label: `Harborline (${DEMO_LABEL})` },
               { id: "apple", label: "Apple (SEC)" },
             ] as const
           ).map((tab) => (
@@ -233,6 +254,12 @@ export function FinancialPerformance({
           <ApplePanel
             loading={appleLoading}
             fetchError={appleFetchError}
+            onRetry={() => {
+              setAppleLoading(true);
+              setAppleFetchError(null);
+              setAppleReloadKey((key) => key + 1);
+            }}
+            onExploreDemo={() => switchDataset("harborline")}
             data={appleData}
             appleMetric={appleMetric}
             setAppleMetric={setAppleMetric}
@@ -310,15 +337,19 @@ function HarborlinePanel({
 
   const summarySentences = buildSummarySentences(stats);
   const beginnerExplanation = buildBeginnerExplanation(stats);
+  const provenance = demoProvenance(series);
 
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-md border border-sand/80 bg-sand/30 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-ink/80">
-          Fictional demonstration data
+          {DEMO_LABEL} · fictional data
         </span>
-        <span className="text-[10px] text-muted">{series.sourceLabel}</span>
+        <span className="text-[10px] text-muted">
+          {series.companyName} · {series.ticker}
+        </span>
       </div>
+      <ProvenanceNote source={provenance.source} date={provenance.date} />
 
       <KpiSelector />
 
@@ -394,6 +425,8 @@ function HarborlinePanel({
 function ApplePanel({
   loading,
   fetchError,
+  onRetry,
+  onExploreDemo,
   data,
   appleMetric,
   setAppleMetric,
@@ -420,6 +453,8 @@ function ApplePanel({
 }: {
   loading: boolean;
   fetchError: string | null;
+  onRetry: () => void;
+  onExploreDemo: () => void;
   data: AppleFinancialHistoryResponse | null;
   appleMetric: AppleMetricId;
   setAppleMetric: (value: AppleMetricId) => void;
@@ -447,7 +482,7 @@ function ApplePanel({
   if (loading) {
     return (
       <p className="rounded-xl border border-line bg-mist px-3 py-4 text-sm text-muted" role="status">
-        Loading Apple annual financial history from the API…
+        {APPLE_LOADING_MESSAGE}
       </p>
     );
   }
@@ -455,8 +490,9 @@ function ApplePanel({
   if (fetchError) {
     return (
       <StateBanner
-        title="Could not load Apple data"
-        body={fetchError}
+        title={APPLE_LOAD_ERROR_TITLE}
+        body={APPLE_LOAD_ERROR_MESSAGE}
+        action={{ label: "Try again", onClick: onRetry }}
       />
     );
   }
@@ -467,57 +503,51 @@ function ApplePanel({
         className="rounded-xl border border-line bg-mist px-3 py-4 text-sm text-muted"
         role="status"
       >
-        Loading Apple annual financial history from the API…
+        {APPLE_LOADING_MESSAGE}
       </p>
     );
   }
 
-  if (data.status === "InvalidConfiguration") {
+  const issue = classifyAppleResponse(data);
+  if (issue?.kind === "retryable") {
     return (
       <StateBanner
-        title="SEC configuration required for live data"
-        body={
-          data.detail ??
-          "Configure SEC ApplicationName and ContactEmail on the .NET API, or enable fixture mode (SEC__UseFixtureData=true)."
-        }
+        title={APPLE_LOAD_ERROR_TITLE}
+        body={APPLE_LOAD_ERROR_MESSAGE}
+        action={{ label: "Try again", onClick: onRetry }}
       />
     );
   }
 
-  if (data.status === "ProviderUnavailable") {
+  if (issue?.kind === "unavailable") {
     return (
       <StateBanner
-        title="Financial API unavailable"
-        body={
-          data.detail ??
-          "Start the TenYearExplorer API (http://localhost:5080) and try again."
-        }
+        title={APPLE_UNAVAILABLE_TITLE}
+        body={APPLE_UNAVAILABLE_MESSAGE}
+        action={{ label: EXPLORE_DEMO_ACTION, onClick: onExploreDemo }}
       />
     );
   }
 
-  if (data.status === "UnsupportedMetric") {
+  if (issue?.kind === "unsupported-metric") {
     return (
       <StateBanner
         title="Unsupported request"
-        body={data.detail ?? "This Apple metric is not available from the API."}
+        body={APPLE_UNSUPPORTED_METRIC_MESSAGE}
       />
     );
   }
 
-  if (
-    data.status === "InsufficientHistory" ||
-    !data.summary ||
-    data.points.length === 0
-  ) {
+  if (issue || !data.summary) {
+    const counts = issue?.kind === "insufficient-history" ? issue : null;
     return (
       <StateBanner
-        title="Insufficient reliable history"
-        body={
-          data.detail ??
-          "Fewer than 10 reliable annual points were available."
-        }
-        warnings={data.warnings}
+        title={APPLE_INSUFFICIENT_HISTORY_TITLE}
+        body={financeInsufficientHistoryMessage(
+          counts?.availableYears ?? null,
+          counts?.requestedYears ?? null,
+        )}
+        action={{ label: EXPLORE_DEMO_ACTION, onClick: onExploreDemo }}
       />
     );
   }
@@ -533,6 +563,11 @@ function ApplePanel({
   const displayFormat = data.displayFormat || "currency";
   const formatValue = (value: number) =>
     formatAppleMetricValue(value, displayFormat, data.currency);
+  const provenance = appleProvenance({
+    sourceProvider: data.sourceProvider,
+    retrievedAtUtc: data.retrievedAtUtc,
+    filingDates: data.points.map((point) => point.filingDate),
+  });
   const addAppleObservation = () => {
     const text = draftObservation.trim();
     if (!text || !relationship || !data.summary) return;
@@ -544,9 +579,7 @@ function ApplePanel({
       fiscalYears: `${data.summary.startFiscalYear} → ${data.summary.endFiscalYear}`,
       exactValues: `${formatValue(data.summary.startValue).exact} → ${formatValue(data.summary.endValue).exact}`,
       text,
-      sourceType: data.sourceProvider.toLowerCase().includes("fixture")
-        ? "SEC fixture data"
-        : "Live SEC data",
+      sourceType: provenance.source,
       relationship,
     });
     setConfirmMessage("Observation and source details added to your thesis draft.");
@@ -555,21 +588,12 @@ function ApplePanel({
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-md border border-accent/30 bg-accent/5 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-accent-deep">
-          {data.sourceProvider.toLowerCase().includes("fixture")
-            ? "Apple SEC (fixture)"
-            : "Live Apple SEC data"}
-        </span>
         <span className="text-[10px] text-muted">
           {data.company.name} · {data.symbol} · CIK {data.cik}
         </span>
       </div>
 
-      <p className="text-[11px] leading-relaxed text-muted">
-        Source: {data.sourceProvider} · Retrieved{" "}
-        {new Date(data.retrievedAtUtc).toLocaleString()} · Cache{" "}
-        {data.cacheStatus}
-      </p>
+      <ProvenanceNote source={provenance.source} date={provenance.date} />
       <p className="text-[11px] leading-relaxed text-muted">
         Illustrative historical example only. These Apple figures are past SEC
         data for education, not a recommendation or a price target.
@@ -599,6 +623,12 @@ function ApplePanel({
             <p className="mt-1 text-[11px] leading-relaxed text-muted">
               Practise separating SEC facts, explanations, judgments, bias checks,
               counter-evidence, and open questions.
+            </p>
+            <p
+              data-testid="bias-check-explainer"
+              className="mt-1 text-[11px] leading-relaxed text-muted"
+            >
+              {BIAS_CHECK_EXPLAINER}
             </p>
             <button
               type="button"
@@ -647,7 +677,10 @@ function ApplePanel({
           currency={data.currency}
           label={data.metricLabel || metricOption?.label || "Metric"}
           displayFormat={displayFormat}
-          caption={`Annual ${data.metricLabel || metricOption?.label || "metric"} (${data.currency}) from API — chart levels match the table`}
+          caption={appleChartCaption(
+            data.metricLabel || metricOption?.label || "Metric",
+            data.currency,
+          )}
         />
       ) : (
         <AppleRevenueTable
@@ -1307,11 +1340,11 @@ function ObservationEditor({
 function StateBanner({
   title,
   body,
-  warnings,
+  action,
 }: {
   title: string;
   body: string;
-  warnings?: AppleFinancialHistoryResponse["warnings"];
+  action?: { label: string; onClick: () => void };
 }) {
   return (
     <aside
@@ -1323,14 +1356,14 @@ function StateBanner({
         <div>
           <p className="text-sm font-medium text-ink">{title}</p>
           <p className="mt-1 text-[11px] leading-relaxed text-muted">{body}</p>
-          {warnings && warnings.length > 0 && (
-            <ul className="mt-2 space-y-1 text-[11px] text-ink/80">
-              {warnings.map((warning) => (
-                <li key={`${warning.code}-${warning.message}`}>
-                  {warning.message}
-                </li>
-              ))}
-            </ul>
+          {action && (
+            <button
+              type="button"
+              onClick={action.onClick}
+              className="mt-2 text-[11px] font-medium text-accent-deep underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              {action.label}
+            </button>
           )}
         </div>
       </div>
@@ -1551,8 +1584,7 @@ function AppleRevenueTable({
     <div className="overflow-x-auto rounded-xl border border-line">
       <table className="w-full min-w-[280px] border-collapse text-left text-xs">
         <caption className="border-b border-line px-3 py-2 text-left text-[11px] text-muted">
-          Exact annual {metricLabel.toLowerCase()} and year-over-year growth from
-          API (SEC-sourced)
+          {appleTableCaption(metricLabel)}
         </caption>
         <thead className="bg-mist text-[11px] text-muted">
           <tr>

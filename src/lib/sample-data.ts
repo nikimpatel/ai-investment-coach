@@ -82,7 +82,7 @@ export const samplePattern = {
 } as const;
 
 export const laterObservation = {
-  title: "Three months later · Harborline (sample)",
+  title: "Three months later · Harborline (Demo)",
   originalConfidence: 6,
   whatChanged:
     "Module attach rates were steady, but a large competitor announced a bundled warehouse suite. Your falsifier (net retention) has not tripped, yet competitive risk rose.",

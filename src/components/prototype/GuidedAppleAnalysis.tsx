@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   fetchAppleFinancialHistory,
   type AppleFinancialHistoryResponse,
@@ -11,7 +11,22 @@ import {
   buildAppleMarginExplanation,
   buildAppleSummarySentences,
 } from "@/lib/apple-trend-copy";
-import { BIAS_LIBRARY } from "@/lib/bias-library";
+import { BIAS_CHECK_EXPLAINER, BIAS_LIBRARY } from "@/lib/bias-library";
+import {
+  APPLE_LOADING_MESSAGE,
+  APPLE_LOAD_ERROR_MESSAGE,
+  APPLE_UNAVAILABLE_MESSAGE,
+  EXPLORE_DEMO_ACTION,
+  MISSING_INFORMATION_HINT,
+  STAGE_EVIDENCE_INTRO,
+  classifyAppleResponse,
+  guidedInsufficientHistoryMessage,
+  type AppleLoadIssue,
+} from "@/lib/user-facing-copy";
+import {
+  appleProvenance,
+  latestFilingDate,
+} from "@/lib/data-provenance";
 import {
   CIRCLE_CHIPS,
   GUIDED_STAGE_IDS,
@@ -44,6 +59,7 @@ interface GuidedAppleAnalysisProps {
   analysis: AppleGuidedAnalysisV1;
   onChange: (analysis: AppleGuidedAnalysisV1) => void;
   onExit: () => void;
+  onExploreDemo: () => void;
   onReset: () => void;
   onSavePacket: (packet: AnalysisPacket) => void;
   savedPacketIds: string[];
@@ -131,18 +147,19 @@ function relationshipCalculation(
   return [];
 }
 
+class AppleEvidenceError extends Error {
+  constructor(readonly issue: AppleLoadIssue) {
+    super(issue.kind);
+  }
+}
+
 function buildEvidenceSnapshot(
   stageId: GuidedStageId,
   responses: AppleFinancialHistoryResponse[],
 ): StageEvidenceSnapshot {
-  const invalid = responses.find(
-    (response) =>
-      !["Success", "PartiallySupported"].includes(response.status) || !response.summary,
-  );
-  if (invalid) {
-    throw new Error(
-      invalid.detail || `Reliable ${invalid.metricLabel || invalid.metric} history is unavailable.`,
-    );
+  for (const response of responses) {
+    const issue = classifyAppleResponse(response);
+    if (issue) throw new AppleEvidenceError(issue);
   }
   const sourceProvider = responses[0]?.sourceProvider ?? "Unknown";
   const retrievedAtUtc = responses
@@ -167,6 +184,9 @@ function buildEvidenceSnapshot(
     openQuestions: getGuidedStage(stageId).openQuestions,
     sourceProvider,
     retrievedAtUtc,
+    latestFilingDate: latestFilingDate(
+      responses.flatMap((response) => response.points.map((point) => point.filingDate)),
+    ),
   };
 }
 
@@ -174,13 +194,14 @@ export function GuidedAppleAnalysis({
   analysis,
   onChange,
   onExit,
+  onExploreDemo,
   onReset,
   onSavePacket,
   savedPacketIds,
 }: GuidedAppleAnalysisProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const loadingStageRef = useRef<GuidedStageId | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<AppleLoadIssue | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
   const [packetRelationships, setPacketRelationships] = useState<
     Partial<Record<GuidedStageId, EvidenceRelationship>>
@@ -226,7 +247,7 @@ export function GuidedAppleAnalysis({
       .catch((error: unknown) => {
         if (!cancelled) {
           setLoadError(
-            error instanceof Error ? error.message : "Could not load Apple evidence.",
+            error instanceof AppleEvidenceError ? error.issue : { kind: "retryable" },
           );
         }
       })
@@ -295,6 +316,7 @@ export function GuidedAppleAnalysis({
           stageContext,
           loadError,
           setLoadError,
+          onExploreDemo,
           packetRelationships,
           savedPacketIds,
           setPacketRelationships,
@@ -354,8 +376,9 @@ function screenTitle(screen: GuidedScreenId): string {
 interface RenderContext {
   analysis: AppleGuidedAnalysisV1;
   stageContext: ReturnType<typeof parseStageScreen>;
-  loadError: string | null;
-  setLoadError: React.Dispatch<React.SetStateAction<string | null>>;
+  loadError: AppleLoadIssue | null;
+  setLoadError: React.Dispatch<React.SetStateAction<AppleLoadIssue | null>>;
+  onExploreDemo: () => void;
   packetRelationships: Partial<Record<GuidedStageId, EvidenceRelationship>>;
   savedPacketIds: string[];
   setPacketRelationships: React.Dispatch<
@@ -512,6 +535,9 @@ function renderScreen(context: RenderContext) {
     return (
       <div className="space-y-3">
         <Layer label="Bias check">
+          <span data-testid="bias-check-explainer" className="mb-1 block font-medium text-ink">
+            {BIAS_CHECK_EXPLAINER}
+          </span>
           These prompts create a pause before a story becomes a judgment. Completing one
           is not an admission of bias, and the product will never diagnose you.
         </Layer>
@@ -556,6 +582,7 @@ function StageScreen({ context }: { context: RenderContext }) {
     stageContext,
     loadError,
     setLoadError,
+    onExploreDemo,
     setScreen,
     updateStage,
     onChange,
@@ -569,7 +596,7 @@ function StageScreen({ context }: { context: RenderContext }) {
     return (
       <div className="space-y-3">
         <p className="text-xs leading-relaxed text-muted">
-          This stage uses existing Sprint 1–3 evidence only:
+          {STAGE_EVIDENCE_INTRO}
         </p>
         <ul className="space-y-1 text-xs text-ink">
           {definition.metrics.map((metric) => (
@@ -595,17 +622,36 @@ function StageScreen({ context }: { context: RenderContext }) {
           {loadError ? (
             <>
               <p className="font-medium text-ink">Evidence unavailable</p>
-              <p className="mt-1">{loadError}</p>
-              <button
-                type="button"
-                className={`${ACTION_CLASS} mt-2`}
-                onClick={() => setLoadError(null)}
-              >
-                Try again
-              </button>
+              <p className="mt-1">
+                {loadError.kind === "retryable"
+                  ? APPLE_LOAD_ERROR_MESSAGE
+                  : loadError.kind === "insufficient-history"
+                    ? guidedInsufficientHistoryMessage(
+                        loadError.availableYears,
+                        loadError.requestedYears,
+                      )
+                    : APPLE_UNAVAILABLE_MESSAGE}
+              </p>
+              {loadError.kind === "retryable" ? (
+                <button
+                  type="button"
+                  className={`${ACTION_CLASS} mt-2`}
+                  onClick={() => setLoadError(null)}
+                >
+                  Try again
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={`${ACTION_CLASS} mt-2`}
+                  onClick={onExploreDemo}
+                >
+                  {EXPLORE_DEMO_ACTION}
+                </button>
+              )}
             </>
           ) : (
-            "Loading verified Apple annual history…"
+            APPLE_LOADING_MESSAGE
           )}
         </div>
       );
@@ -613,14 +659,7 @@ function StageScreen({ context }: { context: RenderContext }) {
     const analogy = GUIDED_ANALOGIES[stageId];
     return (
       <div className="space-y-3">
-        <div className="flex flex-wrap gap-1 text-[10px] text-muted">
-          <span className="rounded-md border border-line px-2 py-1">
-            {stage.evidenceSnapshot.sourceProvider}
-          </span>
-          <span className="rounded-md border border-line px-2 py-1">
-            Saved {new Date(stage.evidenceSnapshot.retrievedAtUtc).toLocaleDateString()}
-          </span>
-        </div>
+        <EvidenceProvenance snapshot={stage.evidenceSnapshot} />
         {stage.evidenceSnapshot.metrics.map((metric) => (
           <Layer key={metric.metric} label="Fact">
             <span className="font-medium">{metric.metricLabel}</span>: {metric.startValue} →{" "}
@@ -736,6 +775,9 @@ function StageScreen({ context }: { context: RenderContext }) {
           <legend className="px-1 text-[10px] font-medium uppercase tracking-wide text-accent-deep">
             Bias check · {bias.name}
           </legend>
+          <p data-testid="bias-check-explainer" className="mb-2 text-[11px] text-muted">
+            {BIAS_CHECK_EXPLAINER}
+          </p>
           <p>{bias.prompt}</p>
           <div className="mt-3 grid gap-2">
             {(
@@ -864,6 +906,7 @@ function JudgmentScreen({
   const [choice, setChoice] = useState(stage.judgment.status);
   const [text, setText] = useState(stage.judgment.text);
   const recordAllowed = stage.biasCheck.status !== "unseen";
+  const recordBlockedId = useId();
   const canContinue =
     choice !== "none" && (choice !== "record" || (recordAllowed && text.trim().length > 0));
   return (
@@ -896,20 +939,29 @@ function JudgmentScreen({
         </div>
       </fieldset>
       {choice === "record" && (
-        <label className="block text-xs font-medium text-ink">
-          Your interpretation of this historical evidence
-          <textarea
-            rows={4}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 font-normal outline-none focus:border-accent"
-          />
+        <div>
+          <label className="block text-xs font-medium text-ink">
+            Your interpretation of this historical evidence
+            <textarea
+              rows={4}
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              aria-describedby={recordAllowed ? undefined : recordBlockedId}
+              className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 font-normal outline-none focus:border-accent"
+            />
+          </label>
           {!recordAllowed && (
-            <span className="mt-1 block text-[11px] text-muted">
+            <p
+              id={recordBlockedId}
+              className="mt-1 block text-[11px] font-medium text-muted"
+            >
               Complete or explicitly skip the bias check before recording.
-            </span>
+              <span data-testid="bias-check-explainer" className="mt-0.5 block">
+                {BIAS_CHECK_EXPLAINER}
+              </span>
+            </p>
           )}
-        </label>
+        </div>
       )}
       {choice === "uncertain" && (
         <label className="block text-xs font-medium text-ink">
@@ -960,7 +1012,7 @@ function PostJudgmentScreen({
   const fields = [
     ["counterEvidence", "Counter-evidence", "Which displayed fact could weaken your view?"],
     ["alternativeExplanations", "Alternative explanations", "What else could produce these numbers?"],
-    ["missingInformation", "Missing information", "What is outside Sprint 1–3 scope?"],
+    ["missingInformation", "Missing information", MISSING_INFORMATION_HINT],
     ["mindChanger", "What would change my mind", "Name an observation, not a price target."],
   ] as const;
   const complete =
@@ -1068,6 +1120,7 @@ function ReviewScreen({ context }: { context: RenderContext }) {
       <p className="text-xs leading-relaxed text-muted">
         Review every stage without a score or bias tally.
       </p>
+      <BiasCheckNote />
       {ordered.map((stageId) => {
         const stage = analysis.stages[stageId];
         const incomplete = stage.judgment.status === "record" && !stage.post.completed;
@@ -1138,6 +1191,7 @@ function SummaryScreen({ context }: { context: RenderContext }) {
       <aside className="rounded-xl border border-accent/30 bg-accent/5 px-3 py-2.5 text-xs">
         {summary.disclaimer}
       </aside>
+      <BiasCheckNote />
       <Layer label="Circle of Competence">
         {summary.circleOfCompetence.interpretation || "Circle of Competence not confirmed."}
         <span className="mt-1 block text-muted">
@@ -1231,7 +1285,14 @@ function SummaryScreen({ context }: { context: RenderContext }) {
                   {savedPacketIds.includes(packetId) ? "Update thesis packet" : "Save to thesis"}
                 </button>
                 <p className="mt-1 text-[10px] text-muted">
-                  Source saved with packet: {item.facts[0]?.sourceProvider}
+                  Source saved with packet:{" "}
+                  {
+                    appleProvenance({
+                      sourceProvider: item.facts[0]?.sourceProvider ?? "",
+                      retrievedAtUtc: item.facts[0]?.retrievedAtUtc ?? null,
+                      filingDates: [],
+                    }).source
+                  }
                 </p>
               </div>
             )}
@@ -1242,6 +1303,37 @@ function SummaryScreen({ context }: { context: RenderContext }) {
         Saved locally. Familiar comparisons are omitted from evidence packets.
       </p>
     </div>
+  );
+}
+
+function BiasCheckNote() {
+  return (
+    <p data-testid="bias-check-explainer" className="text-[11px] leading-relaxed text-muted">
+      {BIAS_CHECK_EXPLAINER}
+    </p>
+  );
+}
+
+function EvidenceProvenance({ snapshot }: { snapshot: StageEvidenceSnapshot }) {
+  const provenance = appleProvenance({
+    sourceProvider: snapshot.sourceProvider,
+    retrievedAtUtc: snapshot.retrievedAtUtc,
+    filingDates: [snapshot.latestFilingDate],
+  });
+  return (
+    <dl
+      data-testid="data-provenance"
+      className="space-y-0.5 rounded-md border border-line px-2 py-1.5 text-[10px] leading-relaxed text-muted"
+    >
+      <div>
+        <dt className="inline font-medium text-ink/80">Source: </dt>
+        <dd className="inline">{provenance.source}</dd>
+      </div>
+      <div>
+        <dt className="inline font-medium text-ink/80">Date: </dt>
+        <dd className="inline">{provenance.date}</dd>
+      </div>
+    </dl>
   );
 }
 

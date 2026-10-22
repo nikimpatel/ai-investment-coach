@@ -22,6 +22,12 @@
     "src/lib/prototype-briefing-storage.ts",
     "src/lib/compliance-copy.ts",
     "src/lib/advice-guardrail.ts",
+    "src/lib/company-context.ts",
+    "src/lib/data-provenance.ts",
+    "src/lib/research-wizard.ts",
+    "src/lib/user-facing-copy.ts",
+    "src/lib/harborline-financials.ts",
+    "src/lib/sample-data.ts",
     "tests/**/*.test.ts"
   ]
 }
